@@ -1,0 +1,21 @@
+# ---- Segredos (NUNCA versionar) ----
+config.h
+
+# ---- Artefatos de build ----
+.pio/
+build/
+*.elf
+*.hex
+*.bin
+
+# ---- Editores / notas pessoais ----
+.obsidian/
+.vscode/
+.idea/
+.DS_Store
+
+# ---- Notas e checkpoints pessoais ----
+SESSAO-*.md
+*-checkpoint.md
+arduino.txt
+esp01.txt
