@@ -6,8 +6,7 @@ restauração da energia da rede (**COPEL**) em Antonina-PR e publica cada event
 - 💬 **Discord** — log auditável com data/hora (webhook do canal)
 - 📲 **Pushbullet** — notificação instantânea no celular
 
-> **Por que sem IFTTT?** O IFTTT exige cartão de crédito. Aqui tudo roda em
-> serviços gratuitos: Discord webhook + Pushbullet + NTP.
+
 
 ## Visão geral
 
