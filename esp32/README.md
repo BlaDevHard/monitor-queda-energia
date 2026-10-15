@@ -1,4 +1,14 @@
-# ⚡ Monitor de Quedas — v3.1 (Arduino + ESP32)
+# ⚡ Monitor de Quedas — v3.2 (Arduino + ESP32)
+
+> **v3.2 — o que mudou:** agora **qualquer queda é detectada**, inclusive a
+> que só faz as lâmpadas piscarem. O Arduino passou a medir o sinal numa
+> janela de **55 ms** e a reportar **todo pulso** com a duração medida; o
+> ESP32 é quem decide se aquilo é um blecaute de verdade ou uma sequência de
+> piscadas — e embala várias quedas curtas **numa única mensagem**.
+>
+> Antes disso, o v3.1 exigia o sinal ausente por ~2 s para reagir: piscar de
+> lâmpada passava despercebido. Ver
+> [*Agrupamento e a "graca" de 8 s*](#agrupamento-e-a-graca-de-8-s).
 
 > **v3.1 — o que mudou:** o **ESP-01 foi substituído por um ESP32 com RTC
 > interno**, e a detecção voltou a ser **direta na rua, pelo ZMPT101B**.
@@ -23,9 +33,18 @@ tomada ─▶ power bank (pass-through) ─┬─ USB 1 ─▶ Arduino
 | Rua cai | o ZMPT para de ver alternada | **QUEDA** (vermelho) |
 | Rua volta | o sinal volta ao A0 | **SERVIÇO ATIVO** (verde) + duração |
 
-O Arduino mede a **amplitude pico-a-pico** do sinal numa janela de ~165 ms
-(~10 ciclos de 60 Hz). Não calcula tensão e não mede a própria alimentação —
+O Arduino mede a **amplitude pico-a-pico** do sinal numa janela de ~55 ms
+(500 amostras). Não calcula tensão e não mede a própria alimentação —
 a rede é medida **direto**, e a alimentação só precisa durar.
+
+Essa janela curta é o que permite ver um piscar: 55 ms cabe em **um único
+ciclo de 60 Hz**, então um corte de 300 ms ainda deixa sinal na janela
+seguinte e o Arduino reporta o pulso com a duração medida, em vez de
+esperar o sinal sumir por 2 s.
+
+A **frequência** é a exceção — ela é a média de 20 janelas (~1 s), porque
+uma janela de 55 ms cobre só 3,3 ciclos e faria o `f=` oscilar entre 53 e
+71 Hz.
 
 Valores medidos nesta instalação (out/2026):
 
@@ -88,6 +107,22 @@ alimentar pelo pino 5V do Arduino; hoje isso é **evitável e indesejável**:
 o ESP32 com WiFi puxa 200–400 mA e passaria pelo PTC de 500 mA da USB do
 Uno.)
 
+### WiFi durante a blecaute
+
+O roteador morre junto com a rua, então o ESP32 fica **sem rede por
+definição** durante a queda — e é aí que justamente precisa entregar o
+alerta. Duas medidas:
+
+- **Fila**: a mensagem sai assim que o WiFi volta (1 msg/s, para não levar
+  429 do webhook).
+- **Escada de reconexão** com **o rádio desligado** entre as tentativas:
+  5 s → 10 s → 20 s → 40 s → 80 s → 180 s. Manter o rádio ligado à espera
+  de um AP que não existe custa ~120 mA e não adianta nada.
+
+Em campo isso apareceu como: alerta publicado às 18:13:20, entregue às
+18:16:00 — o router levou ~2,5 min para voltar, e a fila segurou as duas
+mensagens nesse tempo.
+
 ### Outros riscos reais
 
 - **ZMPT sem energia na entrada:** o sinal cai a ~7 e o sistema registra
@@ -127,9 +162,57 @@ Os valores ficam em `arduino/src/main.cpp`:
 
 ```cpp
 #define LIMITE_AMPLITUDE 65   // amp >= 65 -> presente
-#define CONFIRMACOES 3        // debounce
-#define AMOSTRAS 1500         // janela ~165 ms (~10 ciclos de 60 Hz)
+#define CONFIRMACOES 1        // SEM debounce: reporta todo pulso medido
+#define AMOSTRAS 500          // janela ~55 ms (cabe em 1 ciclo de 60 Hz)
+#define CICLO_MS 60           // alvo de ciclo, auto-ajustado (nao delay fixo)
 ```
+
+`CONFIRMACOES 1` é intencional: o debounce saiu do Arduino e passou para o
+ESP32, que **tem a duração do pulso** e consegue distinguir um corte real
+de um reflexo na rede. O Arduino só mede e reporta.
+
+---
+
+## Agrupamento e a "graca" de 8 s
+
+A pergunta não é "a rua caiu?", e sim **"isso foi blecaute ou foi piscar?"**.
+O ESP32 decide com duas peças:
+
+**1. Buffer de pulsos.** Todo pulso recebido fica numa fila. Quando o sinal
+volta e passam **5 s em silêncio**, a fila inteira vira **uma mensagem só**:
+
+```
+Relatório de pulsos
+• 10 quedas detectadas
+• curtas (flicker): 0
+• longas: 10   (246–426 ms)
+```
+
+Dez viradas de disjuntor em 20 s viraram **duas** mensagens no campo (as
+rajas estavam separadas por mais de 5 s) — e não dez.
+
+**2. A graca de 8 s** (`QUEDA_GRACIA_MS`). Quando o sinal cai, o ESP32
+**não publica nada de imediato**: só carimba o horário. Aí:
+
+| A rua volta antes de 8 s | A rua continua caindo após 8 s |
+|---|---|
+| a QUEDA é **cancelada** e o pulso entra no buffer | vence a graca → **QUEDA vermelha** publicada |
+| sai **um relatório** no fim da janela | na volta, **SERVIÇO ATIVO** verde |
+
+Testado em campo, derrubando o disjuntor:
+
+| Queda | Graca | Resultado |
+|---|---|---|
+| 6,4 s | nao venceu | 1 relatório (1 evento, 6380 ms) |
+| 49 s | venceu aos 8 s | QUEDA vermelha + SERVICO ATIVO |
+
+No caso dos 49 s o pulso foi **ignorado** pelo buffer (`Pulso ignorado —
+episódio já publicado avulsamente`), para não contar a mesma história duas
+vezes.
+
+> **Por que 8 s?** É o compromisso entre "não perder blecaute de verdade" e
+> "não gritar a cada piscar". Quem quiser reagir a cortes mais curtos, só
+> baixar `QUEDA_GRACIA_MS` no ESP32.
 
 ---
 
@@ -247,7 +330,7 @@ desligam abaixo de ~50 mA de carga; a nossa, ~175 mA, está seguro.
 
 | Arquivo | Função |
 |---|---|
-| `arduino/src/main.cpp` | **sensor v3.1** — mede o ZMPT no A0 por amplitude |
+| `arduino/src/main.cpp` | **sensor v3.2** — mede o ZMPT no A0 por amplitude |
 | `arduino/src/main_v1.cpp` | a v1 original, preservada do commit inicial |
 | `esp32/platformio.ini` | `gateway_uart` (ativo) e `unificado_adc` (legado) |
 | `esp32/src/monitor_core.*` | WiFi, NTP/RTC, Discord, Pushbullet, MQTT, HTTP, fila, checkpoint |

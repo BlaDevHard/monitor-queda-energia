@@ -5,9 +5,11 @@
 > | | |
 > |---|---|
 > | **v2 — em campo e publicada** | ZMPT101B → Arduino → ESP-01. É o que este README descreve abaixo. |
-> | **v3.1 — a mais recente** | ZMPT **direto no A0 do Arduino** (o único detector da rua), ESP-01 **substituído por ESP32 com RTC + NTP**, e **power bank** no lugar do no-break. Documentação: [`esp32/README.md`](esp32/README.md). |
+> | **v3.1** | ZMPT **direto no A0 do Arduino** (o único detector da rua), ESP-01 **substituído por ESP32 com RTC + NTP**, e **power bank** no lugar do no-break. |
+> | **v3.2 — a mais recente** | **Detecta pulso curto**: piscar de lâmpada (250 ms+) vira evento, e várias quedas num intervalo de 5 s saem **empacotadas numa mensagem só**. Documentação: [`esp32/README.md`](esp32/README.md) · protocolo: [`docs/protocolo-uart.md`](docs/protocolo-uart.md). |
 >
-> A v3.1 foi validada em bancada (ciclo QUEDA → SERVIÇO ATIVO simulado).
+> A v3.2 foi validada **em campo**, derrubando o disjuntor de verdade:
+> 10 viradas em ~20 s → 2 mensagens no Discord (pulsos de 246–426 ms).
 > Ainda **não caiu a rua de verdade** durante um registro — a primeira queda
 > real é o teste que falta. Enquanto isso, as seções abaixo valem para a v2.
 
@@ -202,7 +204,7 @@ Os mesmos arquivos `config.h` / `config.example.h` existem em `wifi_server/`.
 
 | Pasta | Status | Descrição |
 |---|---|---|
-| `arduino/` | ✅ ativo | firmware do sensor (PlatformIO, ATmega328P) — **v3.1** mede a rua pelo ZMPT no A0 |
+| `arduino/` | ✅ ativo | firmware do sensor (PlatformIO, ATmega328P) — **v3.2** mede a rua pelo ZMPT no A0 e reporta todo pulso |
 | `esp32/` | 🚧 v3 | gateway ESP32 com RTC interno, fila de mensagens e checkpoint (ver [`esp32/README.md`](esp32/README.md)) |
 | `gateway/` | ✅ v2 em campo | firmware do ESP-01 (Discord + Pushbullet + NTP) |
 | `wifi_server/` | 🧪 teste | servidor web para validar o hardware do ESP-01 |
@@ -223,6 +225,7 @@ Os mesmos arquivos `config.h` / `config.example.h` existem em `wifi_server/`.
 | **v3: power bank no lugar do no-break** | o no-break não pôde ser mantido |
 | **v3.0: ZMPT retirado** | tentativa de detectar a queda pela própria alimentação (Vcc via bandgap) — exigia calibração sem multímetro |
 | **v3.1: ZMPT voltou, Vcc removido** | o método pela fonte não media a rua e dependia do pass-through do power bank; o ZMPT dá a resposta direta, sem calibração |
+| **v3.2: janela de 55 ms + relatório empacotado** | o v3.1 exigia ~2 s de sinal ausente e **perdia piscar de lâmpada**; agora o Arduino reporta todo pulso medido e o ESP32 decide, embalando várias quedas curtas numa mensagem só |
 | **v3.0: ESP32 + RTC** | o roteador cai junto com a rua, então sem NTP durante a queda — o RTC interno carimba o momento e a fila entrega quando a rede volta |
 | **v3.0: checkpoint na flash** | cobre o caso do power bank esgotar e tudo desligar |
 

@@ -59,6 +59,14 @@ void loop() {
 
     sensorPulsou();
 
+    // v3.2: linha de PULSO — o Arduino reporta cada queda e cada
+    // volta com a duracao medida. Precisa vir ANTES do filtro de
+    // "energia", porque essas linhas nao tem o campo "energia".
+    if (linha.indexOf("\"pulso\":") >= 0) {
+      processarPulso(linha);
+      continue;
+    }
+
     String energia = extrairTexto(linha, "\"energia\":\"");
     if (energia.length() == 0) continue;   // ex.: {"boot":"Sensor OK",...}
 

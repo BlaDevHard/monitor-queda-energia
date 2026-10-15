@@ -59,6 +59,13 @@ void alertaHardware(const String& titulo, const String& corpo);
 // estado que nao muda mais porque o sensor morreu).
 void sensorPulsou();
 
+// ---- registro de pulso curto (v3.2) ----
+// Chamar com cada linha {"pulso":...} vinda do Arduino. O nucleo
+// guarda a duracao medida e, quando passa JANELA_PULSO_MS sem pulso,
+// manda UM relatorio com todos eles — em vez de uma mensagem por
+// pulso (um blecaute de 5 s pode virar 6 mensagens).
+void processarPulso(const String& linha);
+
 // ---- utilitarios (ex.: para ler linhas JSON do Arduino) ----
 String extrairTexto(const String& json, const String& chave);
 int extrairInteiro(const String& json, const String& chave);

@@ -53,18 +53,22 @@ O ZMPT voltou ao A0 e mede a rede direto. `VCC_LIMITE_MV`,
 - **Função**: detectar se a **rua tem energia**, e o instante em que cai
   e volta.
 - **Como mede**: amplitude pico-a-pico do sinal alternada numa janela de
-  1500 amostras (~165 ms, ~10 ciclos de 60 Hz).
+  500 amostras (~55 ms — cabe em **1 ciclo** de 60 Hz, o que permite ver um
+  piscar de lâmpada).
 
   ```
   amp = max(janela) − min(janela)      presente se amp >= 65
   ```
 
   Medido nesta instalação: rua com energia **~417**, sem energia **~7**.
-  A frequência medida (`f=59.5Hz`) confirma que é rede de verdade e não
-  ruído — ela só é reportada quando há sinal.
-- **Debounce**: só altera o estado após `CONFIRMACOES` (3) leituras iguais
-  seguidas (~1,5 s).
-- **Saída**: UART 9600 8N1, uma linha JSON por ~500 ms
+  A frequência medida (`f=60.7Hz`) confirma que é rede de verdade e não
+  ruído — ela só é reportada quando há sinal, e é a **média de 20 janelas**
+  (~1 s), porque uma janela de 55 ms sozinha faz o valor oscilar entre 53
+  e 71 Hz.
+- **Sem debounce no Arduino** (`CONFIRMACOES 1`): ele reporta **todo pulso**
+  com a duração medida. Quem separa blecaute de piscada é o ESP32, que tem
+  a duração em mãos (ver [protocolo-uart.md](protocolo-uart.md)).
+- **Saída**: UART 9600 8N1, uma linha JSON por ciclo de ~60 ms
   (ver [protocolo-uart.md](protocolo-uart.md))
 - **LED**: aceso = QUEDA (sem serviço)
 - **Não calcula tensão**: o projeto nunca precisou de V_RMS, só de
@@ -104,14 +108,17 @@ O ZMPT voltou ao A0 e mede a rede direto. `VCC_LIMITE_MV`,
 
 ## Fluxo de dados
 
-1. Arduino mede uma janela de 1500 amostras do A0 (~165 ms)
+1. Arduino mede uma janela de 500 amostras do A0 (~55 ms)
 2. `amp = max − min`; `presente` se `amp >= 65`
-3. Debounce: confirma o novo estado só após 3 leituras idênticas
-4. Envia linha JSON por UART (~500 ms entre linhas)
+3. Sem debounce: reporta a transição (e todo pulso medido) direto
+4. Envia linha JSON por UART (ciclo alvo de ~60 ms)
 5. Gateway lê a linha e aplica a máquina de estados
-6. Em transição (ou na 1ª leitura), **monta a mensagem com a hora do RTC**
-7. Se há internet → envia. Se **não há** → guarda na **fila**
-8. Quando o WiFi volta, entrega **1 mensagem por segundo** (rate limit do webhook)
+6. **Pulsos vão para um buffer**; quando o sinal volta e passam 5 s em
+   silêncio, a fila inteira vira **um relatório só**
+7. Queda: o ESP32 **adiada a decisão 8 s** — se a rua voltar antes, vira
+   relatório; se não, é blecaute e publica **QUEDA**
+8. Se há internet → envia. Se **não há** → guarda na **fila**
+9. Quando o WiFi volta, entrega **1 mensagem por segundo** (rate limit do webhook)
 
 ## Alimentação
 

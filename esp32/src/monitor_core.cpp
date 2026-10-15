@@ -60,6 +60,246 @@ static String horaMudanca = "-";           // hora da ultima mudanca
 static unsigned long ultimaLeituraSensor = 0;
 static bool sensorSilencioso = false;
 
+// ---- registro de pulsos curtos (v3.2) ----
+// Declaracoes adiantadas: estas funcoes estao definidas mais abaixo
+// e o bloco de pulsos precisa delas (o relatorio sai formatado igual
+// as outras mensagens).
+static String identificacao();
+static String agoraStr();
+static String notaHora(time_t t);
+static void publicar(const String& titulo, const String& corpo, int cor);
+
+// O Arduino reporta CADA pulso (queda e volta) com a duracao que
+// ele mesmo mediu. Aqui juntamos varios pulsos num relatorio so —
+// e o caso real que motiva: um blecaute de 5 s pode virar 3 quedas
+// e 3 retornos, e mandar 6 mensagens de Discord nao ajuda ninguem.
+#define PULSO_MAX 64              // pulsos guardados antes de forcar o envio
+#define JANELA_PULSO_MS 5000      // 5 s: agrupa pulsos desta janela
+#define LIMITE_RELATORIO_MS 1000  // abaixo disso e "flicker", so entra no relatorio
+
+static unsigned long pulsoInicio = 0;   // inicio do pulso em curso (0 = nenhum)
+static int pulsoAmpMin = -1;            // amplitude minima vista no pulso
+static unsigned long pulsoJanelaFim = 0;  // fim da janela de agrupamento
+static bool pulsoRelatorioPendente = false;
+static unsigned long pulsoTotal = 0;      // contador desde o boot
+
+// --- DECISAO: mensagem avulsada ou relatorio? ---
+//
+// O problema de principio: no instante em que a rua cai, o ESP32 ainda
+// NAO SABE se isso e um piscar de lampada de 250 ms ou um blecaute de
+// 3 horas. As duas coisas comecam igual. A v3.2 tentava decidir ali
+// mesmo e so conseguia silenciar tudo — o teste de campo mostrou 20 de
+// 20 transicoes silenciadas, ou seja, o alerta vermelho de QUEDA parou
+// de existir.
+//
+// A saida e ADIAR a decisao por QUEDA_GRACIA_MS:
+//
+//   rua cai -> guarda o estado, nao manda nada
+//        |
+//        +-- rua voltou antes da graca --> piscar de lampada.
+//        |                                 Vai no relatorio empacotado,
+//        |                                 junto com os vizinhos da
+//        |                                 mesma rajada. Nenhuma
+//        |                                 mensagem avulsa.
+//        |
+//        +-- continuou cainda apos a graca --> e blecaute de verdade.
+//                                          Publica QUEDA agora, com o
+//                                          horario real da queda (ja
+//                                          carimbado), e depois o
+//                                          SERVICO ATIVO na volta.
+//
+// O custo e um atraso de ~8 s no alerta de blecaute real — a v3.1
+// levava ~2 s. O ganho e que o piscar de lampada finalmente passa a
+// existir, e numa mensagem so em vez de tres.
+#define QUEDA_GRACIA_MS 8000    // espera antes de tratar como blecaute real
+
+// Quantos pulsos estao guardados para o relatorio. Declarado aqui
+// porque ha funcoes antes do bloco de pulsos que precisam deste.
+static int pulsoQtd = 0;
+
+// quedaAdiada  = a rua caiu e a graca ainda nao venceu
+// alertaAvulso = ja publicamos QUEDA/SERVICO ATIVO para este episodio,
+//                entao o relatorio nao deve repetir a mesma historia
+static bool quedaAdiada = false;
+static bool alertaAvulso = false;
+
+// Ha evidencia de RAJADA (pulsos curtos ja registrados). Nesse caso a
+// transicao de estado nao vira mensagem avulsa: vai no relatorio.
+//
+// Note que isto olha apenas o BUFFER. Olhar "pulso em curso" seria
+// errado — todo blecaute real tambem tem um pulso em curso, e ai o
+// alerta de verdade seria silenciado junto.
+static bool silenciarTransicao() {
+  return pulsoRelatorioPendente || pulsoQtd > 0;
+}
+
+// --- fallback para queda longa sem dur_ms (ver coreLoop) ---
+// Um blecaute mais longo que o proprio heartbeat do Arduino deixa
+// o sistema sem "dur_ms" para registrar. Guardamos aqui o epoch em
+// que o estado virou "ausente", para o relatorio conseguir duracao.
+static time_t pulsoSemEnergiaDesde = 0;
+static bool pulsoQuedaContada = false;
+
+// Uma entrada por pulso: hora (ou aproximada), duracao e profundidade
+struct Pulso {
+  time_t hora;
+  unsigned long durMs;
+  int ampMin;
+};
+static Pulso pulsos[PULSO_MAX];
+
+static void pulsoRegistrar(unsigned long durMs, int ampMin) {
+  time_t agora = relogioAgora();
+  pulsoTotal++;
+
+  // Este episodio ja foi contado como avulso (QUEDA + SERVICO ATIVO).
+  // Guardar o pulso aqui geraria um relatorio contando a MESMA historia
+  // de novo, 5 s depois.
+  //
+  // A linha "dur_ms" chega ANTES da de "presente", entao neste ponto
+  // alertaAvulso ainda esta levantado — e e exatamente o que queremos.
+  if (alertaAvulso) {
+    Serial.println("Pulso ignorado (" + String(durMs) +
+                   " ms) — episodio ja publicado avulsamente");
+    return;
+  }
+
+  if (pulsoQtd < PULSO_MAX) {
+    pulsos[pulsoQtd].hora = agora;
+    pulsos[pulsoQtd].durMs = durMs;
+    pulsos[pulsoQtd].ampMin = ampMin;
+    pulsoQtd++;
+  } else {
+    // Fila cheia: descarta a mais antiga. O pulso MAIS RECENTE e o
+    // que importa — ele diz o que esta acontecendo agora.
+    for (int i = 1; i < pulsoQtd; i++) pulsos[i - 1] = pulsos[i];
+    pulsos[pulsoQtd - 1].hora = agora;
+    pulsos[pulsoQtd - 1].durMs = durMs;
+    pulsos[pulsoQtd - 1].ampMin = ampMin;
+  }
+
+  // Janela de agrupamento: recomeca a cada pulso. Assim 3 pulsos em
+  // 5 s viram UM relatorio, e um pulso solitario 20 s depois vira
+  // outro.
+  pulsoJanelaFim = millis() + JANELA_PULSO_MS;
+  pulsoRelatorioPendente = true;
+
+  Serial.print("Pulso registrado (");
+  Serial.print(durMs);
+  Serial.print(" ms, amp ");
+  Serial.print(ampMin);
+  Serial.print(") — ");
+  Serial.print(pulsoQtd);
+  Serial.println(" no buffer");
+}
+
+// Trata uma linha {"pulso":...} vinda do Arduino.
+void processarPulso(const String& linha) {
+  int dur = extrairInteiro(linha, "\"dur_ms\":");
+  int amp = extrairInteiro(linha, "\"amp\":");
+  if (amp < 0) amp = extrairInteiro(linha, "\"amp_min\":");
+
+  bool abrindo = linha.indexOf("\"abrindo\":1") >= 0;
+
+  sensorPulsou();
+
+  if (abrindo) {
+    // Pulso em curso: nao registra ainda — precisamos da duracao.
+    if (pulsoInicio == 0) pulsoInicio = millis();
+    if (amp >= 0) pulsoAmpMin = (pulsoAmpMin < 0 ? amp : (amp < pulsoAmpMin ? amp : pulsoAmpMin));
+    return;
+  }
+
+  if (dur < 0) return;          // linha malformada
+
+  // O Arduino mede a duracao inteira. Se tambem guardamos o inicio
+  // aqui, fica o maior dos dois — o do Arduino e o mais preciso.
+  unsigned long durMs = (unsigned long)dur;
+  if (pulsoInicio != 0 && millis() - pulsoInicio > durMs)
+    durMs = millis() - pulsoInicio;
+
+  int prof = amp >= 0 ? amp : pulsoAmpMin;
+  pulsoRegistrar(durMs, prof);
+  pulsoInicio = 0;
+  pulsoAmpMin = -1;
+}
+
+// Monta e envia o relatorio empacotado dos pulsos guardados.
+static void enviarRelatorioPulsos() {
+  // O relatorio serve para pulsos curtos E para a queda longa do
+  // fallback. Sair se nao ha nada a contar.
+  bool temFallback = pulsoQuedaContada && emQueda && pulsoSemEnergiaDesde > 0;
+  if (pulsoQtd <= 0 && !temFallback) return;
+
+  int flicker = 0, quedas = 0;
+  unsigned long somaMs = 0;
+  for (int i = 0; i < pulsoQtd; i++) {
+    somaMs += pulsos[i].durMs;
+    if (pulsos[i].durMs < LIMITE_RELATORIO_MS) flicker++;
+    else quedas++;
+  }
+
+  // Queda longa, sem dur_ms do Arduino. Nao passa pelo loop acima:
+  // ela nunca virou "pulso" porque o heartbeat parou antes de o
+  // Arduino mandar o fim.
+  time_t agoraRel = relogioAgora();
+  unsigned long fallbackMs = 0;
+  if (pulsoQuedaContada && emQueda && pulsoSemEnergiaDesde > 0 && agoraRel > pulsoSemEnergiaDesde) {
+    fallbackMs = (agoraRel - pulsoSemEnergiaDesde) * 1000UL;
+    quedas++;
+  }
+  somaMs += fallbackMs;
+
+  // Titulo: quantos pulsos e quanto tempo no total
+  int totalEventos = pulsoQtd + (pulsoQuedaContada && emQueda ? 1 : 0);
+  String titulo = "RELATÓRIO DE PULSOS — " + String(totalEventos) +
+                  (totalEventos == 1 ? " evento" : " eventos");
+  String msg = "O sensor viu " + String(totalEventos) +
+               (totalEventos == 1 ? " pulso" : " pulsos") +
+               " na rede em um intervalo curto.\n\n";
+
+  if (quedas > 0 && flicker > 0)
+    msg += "Desses, " + String(quedas) + " acima de 1 s (queda de verdade)\n" +
+           "e " + String(flicker) + " abaixo (piscar de lâmpada).\n\n";
+  else if (quedas > 0)
+    msg += "Todos acima de 1 s — queda de verdade.\n\n";
+  else
+    msg += "Todos abaixo de 1 s — o padrão de quem vê a lâmpada piscar.\n\n";
+
+  msg += "Tempo total sem energia: " + relogioFormatarDuracao(somaMs / 1000) + "\n";
+  msg += "Quedas desde o boot: " + String(pulsoTotal) + "\n\n";
+
+  msg += "Detalhe:\n";
+  for (int i = 0; i < pulsoQtd; i++) {
+    msg += "  " + (pulsos[i].hora > 0 ? relogioFormatar(pulsos[i].hora) : String("?"));
+    msg += "  " + String(pulsos[i].durMs) + " ms";
+    if (pulsos[i].ampMin >= 0) msg += "  amp " + String(pulsos[i].ampMin);
+    msg += "\n";
+  }
+  if (fallbackMs > 0) {
+    msg += "  " + (pulsoSemEnergiaDesde > 0 ? relogioFormatar(pulsoSemEnergiaDesde) : String("?"));
+    msg += "  em andamento (" + relogioFormatarDuracao(fallbackMs / 1000) + ")\n";
+  }
+  msg += "\n";
+  // notaHora(pulsos[0].hora) estouraria no caso do fallback, onde
+  // pulsos[] esta vazio; usa a hora do episodio, que vale nos dois.
+  msg += notaHora(pulsoQtd > 0 ? pulsos[0].hora : pulsoSemEnergiaDesde);
+  msg += identificacao();
+  msg += agoraStr();
+
+  // Cor: laranja se tem queda de verdade, amarelo se so flicker
+  Serial.println("Relatorio de pulsos: " + String(totalEventos) + " eventos (" +
+                 String(quedas) + " quedas, " + String(flicker) + " flicker)");
+  publicar(titulo, msg, quedas > 0 ? 0xFF8C00 : 0xFFD400);
+
+  pulsoQtd = 0;
+  pulsoRelatorioPendente = false;
+  pulsoJanelaFim = 0;
+  // A queda longa ja foi reportada. Sem isto, o episodio entraria de
+  // novo em todo relatorio seguinte enquanto durasse.
+  pulsoQuedaContada = false;
+}
+
 // republicacao periodica do link da documentacao (ver coreLoop)
 static unsigned long ultimaDocs = 0;
 static bool ultimaDocsValido = false;
@@ -154,13 +394,13 @@ static unsigned long duracaoQuedaMs() {
 // ==================================================================
 //  WIFI
 // ==================================================================
-static void conectarWiFi() {
+static void conectarWiFi(int esperaMs = 4000) {
   Serial.print("Conectando WiFi");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   int t = 0;
-  while (WiFi.status() != WL_CONNECTED && t < 40) {
+  while (WiFi.status() != WL_CONNECTED && t < esperaMs / 500) {
     delay(500);
     Serial.print(".");
     t++;
@@ -575,18 +815,21 @@ void processarEstado(const String& energia, int amp) {
     tsMudanca = millis();
     horaMudanca = agora > 0 ? relogioFormatar(agora) : "-";
 
-    String msg = "Sem energia na rua\n";
-    msg += "Início: " + (agora > 0 ? relogioFormatar(agora) : String("?")) + "\n";
-    msg += "Detecção: o ZMPT101B do Arduino parou de ver alternada na rede\n";
-    if (ampAtual >= 0) msg += "Amplitude ZMPT: " + String(ampAtual) + " (limiar 65)\n";
-    msg += notaHora(agora);
-    msg += identificacao();
-    msg += agoraStr();
+    // A hora JA e carimbada aqui, antes da graca. E por isso que o
+    // alerta publicado 8 s depois continua com o horario certo da
+    // queda, nao o da confirmacao.
+    if (silenciarTransicao()) {
+      Serial.println("EVENTO: QUEDA (amp=" + String(ampAtual) +
+                     ") [rajada — vai no relatorio]");
+    } else {
+      quedaAdiada = true;
+      Serial.println("EVENTO: QUEDA (amp=" + String(ampAtual) +
+                     ") [adiado " + String(QUEDA_GRACIA_MS / 1000) +
+                     " s — se virar blecaute, publica]");
+    }
 
-    Serial.println("EVENTO: QUEDA (amp=" + String(ampAtual) + ")");
-    publicar("QUEDA", msg, 0xFF0000);   // vermelho
     salvarCheckpoint();
-    mqttPublicarEstado();
+    mqttPublicarEstado();   // MQTT SEMPRE: o app le o estado atual
     return;
   }
 
@@ -609,9 +852,27 @@ void processarEstado(const String& energia, int amp) {
     msg += identificacao();
     msg += agoraStr();
 
-    Serial.println("EVENTO: SERVICO ATIVO (queda de " +
-                   relogioFormatarDuracao(durUltimaQueda / 1000) + ")");
-    publicar("SERVIÇO ATIVO", msg, 0x00FF00);   // verde
+    // Regra em espelho com a da QUEDA:
+    //  - a graca venceu e publicamos QUEDA -> fecha o episodio com
+    //    SERVICO ATIVO, e o relatorio fica de fora (senao repetiria
+    //    a mesma historia)
+    //  - a rua voltou antes da graca -> piscar de lampada; nao ha
+    //    par para fechar, e o relatorio carrega o episodio
+    if (quedaAdiada) {
+      quedaAdiada = false;                    // voltou antes da graca
+      Serial.println("EVENTO: SERVICO ATIVO (queda de " +
+                     relogioFormatarDuracao(durUltimaQueda / 1000) +
+                     ") [cancelado — virou relatorio]");
+    } else if (alertaAvulso) {
+      alertaAvulso = false;
+      Serial.println("EVENTO: SERVICO ATIVO (queda de " +
+                     relogioFormatarDuracao(durUltimaQueda / 1000) + ")");
+      publicar("SERVIÇO ATIVO", msg, 0x00FF00);   // verde
+    } else {
+      Serial.println("EVENTO: SERVICO ATIVO (queda de " +
+                     relogioFormatarDuracao(durUltimaQueda / 1000) +
+                     ") [rajada — vai no relatorio]");
+    }
     tsQuedaEpoch = 0;
     salvarCheckpoint();
     mqttPublicarEstado();
@@ -680,21 +941,43 @@ void coreLoop() {
     ultimoPisca = millis();
   }
 
-  // --- Reconecta WiFi se caiu (tenta 1x a cada 15s p/ nao
-  //     travar a leitura do sensor numa tentativa longa) ---
+  // --- Reconecta WiFi se caiu ---
+  // MOTIVO: o roteador morre junto com a rua. Varrendo canais o
+  // ESP32 puxa ~250 mA contra ~120 mA com o WiFi só parado — e o
+  // caso real (blecaute) e justamente quando a bateria importa.
+  //
+  // Por isso: escada 5/10/20/40/80/180 s, com o radio DESLIGADO
+  // entre as tentativas. A primeira tentativa e curta (4 s) para
+  // blecautes rapidos em que o roteador ja voltou; as seguintes
+  // vao afastando. Toda tentativa e bloqueante mas curta, e so
+  // acontece com a rua fora — com energia ligada nao ha varredura.
   static bool primeiraTentativa = true;
   static unsigned long ultimaRecon = 0;
+  static unsigned long esperaRecon = 5000;   // escada, em ms
   if (WiFi.status() != WL_CONNECTED) {
     if (wifiOk) {
       Serial.println("WiFi caiu (roteador junto com a rua?) — mensagens vao para a fila");
+      esperaRecon = 5000;                    // reinicia a escada
+      primeiraTentativa = true;
     }
     wifiOk = false;
-    if (primeiraTentativa || millis() - ultimaRecon > 15000) {
+    if (primeiraTentativa || millis() - ultimaRecon > esperaRecon) {
       primeiraTentativa = false;
       ultimaRecon = millis();
-      conectarWiFi();
+      conectarWiFi(esperaRecon == 5000 ? 4000 : 3000);
+      // Escada: 5, 10, 20, 40, 80, 180, 180, ...
+      esperaRecon = esperaRecon >= 180000 ? 180000 : esperaRecon * 2;
+    } else {
+      // Rádio desligado enquanto espera: economia real de corrente.
+      if (WiFi.getMode() != WIFI_OFF) {
+        Serial.println("WiFi: radio desligado ate a proxima tentativa (" +
+                       String(esperaRecon / 1000) + " s)");
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+      }
     }
   } else {
+    if (!wifiOk) Serial.println("WiFi: voltou");
     wifiOk = true;
   }
 
@@ -748,6 +1031,76 @@ void coreLoop() {
     alertaHardware("⚠️ SENSOR EM SILÊNCIO", msg);
   }
 #endif
+
+  // --- Graca: a rua caiu e continua caindo? ---
+  //
+  // Este e o unico lugar que publica QUEDA. processarEstado so carimba
+  // o horario e levanta quedaAdiada; a decisao de virar alerta e daqui,
+  // porque so aqui da para saber se ja passou tempo suficiente para
+  // descartar "piscar de lampada".
+  if (quedaAdiada && emQueda && millis() - tsQueda >= QUEDA_GRACIA_MS) {
+    quedaAdiada = false;
+    alertaAvulso = true;
+
+    time_t inicio = tsQuedaEpoch;
+    String msg = "Sem energia na rua\n";
+    msg += "Início: " + (inicio > 0 ? relogioFormatar(inicio) : String("?")) + "\n";
+    msg += "Duração até agora: " + relogioFormatarDuracao((millis() - tsQueda) / 1000) + "\n";
+    msg += "Detecção: o ZMPT101B do Arduino parou de ver alternada na rede\n";
+    if (ampAtual >= 0) msg += "Amplitude ZMPT: " + String(ampAtual) + " (limiar 65)\n";
+    msg += notaHora(inicio);
+    msg += identificacao();
+    msg += agoraStr();
+
+    Serial.println("QUEDA confirmada como blecaute real — publicando alerta");
+    publicar("QUEDA", msg, 0xFF0000);   // vermelho
+  }
+
+  // Fallback para queda longa sem dur_ms.
+  //
+  // Se o Arduino cai junto com a rua (ou o ESP32 reinicia no meio
+  // da queda), a linha "dur_ms" nunca chega. Registrariamos zero
+  // pulsos e o relatorio nao sairia — mesmo tendo havido uma queda.
+  // A saida aqui e o estado CONFIRMADO: "ausente" so sai do Arduino
+  // depois de CONFIRMACOES leituras, e o ESP32 so move o estado
+  // depois de CONFIRMACOES do proprio nucleo. Sao duas camadas de
+  // debounce, entao flicker nao chega aqui.
+  //
+  // NAO manda o relatorio aqui de proposito: enviar agora quebraria
+  // a janela de 5 s em varios relatorios (3 flips em 5 s viravam 3
+  // mensagens). So armamos o marcador; quem entrega e o bloco de
+  // janela fechada la embaixo.
+  //
+  // Tambem nao armapos se a graca ja publicou QUEDA (alertaAvulso):
+  // nesse caso o Discord ja recebeu o alerta, e um relatorio contando
+  // a mesma coisa seria ruido.
+  if (!emQueda && pulsoQuedaContada) pulsoQuedaContada = false;   // voltou
+
+  if (emQueda && !pulsoQuedaContada && pulsoInicio == 0 && !alertaAvulso) {
+    pulsoQuedaContada = true;
+    time_t agora = relogioAgora();
+    if (agora > 0) pulsoSemEnergiaDesde = agora;
+    Serial.println("Queda confirmada sem dur_ms do Arduino — fallback armado");
+  }
+
+  // --- Relatorio de pulsos quando a janela fechou ---
+  // A janela "renova" a cada pulso novo, entao so fecha quando passa
+  // 5 s sem pulso nenhum — ai os pulsos guardados saem juntos, numa
+  // mensagem so. Fica ANTES do return de wifiOk: precisa sair mesmo
+  // com a rede fora (entra na fila do Discord).
+  //
+  // O fallback (queda longa sem dur_ms) entra pelo MESMO caminho: se
+  // o relatorio disparasse no instante do fallback, os pulsos curtos
+  // anteriores ficariam de fora. Note que o fallback NAO exige
+  // pulsoQtd: uma queda longa pura, sem nenhum pulso curto, tambem
+  // tem de virar relatorio — e e o caso que mais importa.
+  bool fallbackPendente = pulsoQuedaContada && emQueda &&
+                          pulsoSemEnergiaDesde > 0;
+  if (pulsoRelatorioPendente && pulsoQtd > 0 && millis() > pulsoJanelaFim) {
+    enviarRelatorioPulsos();
+  } else if (fallbackPendente && millis() > pulsoJanelaFim) {
+    enviarRelatorioPulsos();
+  }
 
   if (!wifiOk) return;
 
