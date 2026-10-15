@@ -5,10 +5,11 @@
 > | | |
 > |---|---|
 > | **v2 — em campo e publicada** | ZMPT101B → Arduino → ESP-01. É o que este README descreve abaixo. |
-> | **v3 — em desenvolvimento** | ZMPT **retirado**, ESP-01 **substituído por ESP32 com RTC**, detecção pela própria alimentação do Arduino e **power bank** no lugar do no-break. Documentação: [`esp32/README.md`](esp32/README.md). |
+> | **v3.1 — a mais recente** | ZMPT **direto no A0 do Arduino** (o único detector da rua), ESP-01 **substituído por ESP32 com RTC + NTP**, e **power bank** no lugar do no-break. Documentação: [`esp32/README.md`](esp32/README.md). |
 >
-> A v3 **ainda não foi validada em campo** — falta calibrar o limiar com uma
-> queda real. Enquanto isso, as seções abaixo seguem valendo para a v2.
+> A v3.1 foi validada em bancada (ciclo QUEDA → SERVIÇO ATIVO simulado).
+> Ainda **não caiu a rua de verdade** durante um registro — a primeira queda
+> real é o teste que falta. Enquanto isso, as seções abaixo valem para a v2.
 
 Sistema embarcado, de baixo custo e **sem assinaturas**, que detecta queda e
 restauração da energia da rede (**COPEL**) em Antonina-PR e publica cada evento em:
@@ -16,7 +17,7 @@ restauração da energia da rede (**COPEL**) em Antonina-PR e publica cada event
 - 💬 **Discord** — log auditável com data/hora (webhook do canal)
 - 📲 **Pushbullet** — notificação instantânea no celular
 
-
+Sem IFTTT e sem assinatura: Discord webhook + Pushbullet + NTP.
 
 ## Visão geral
 
