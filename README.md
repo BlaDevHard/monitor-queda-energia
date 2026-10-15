@@ -1,5 +1,15 @@
 # ⚡ Monitor de Quedas de Energia — Antonina-PR
 
+> ### 📌 Status: duas versões neste repositório
+>
+> | | |
+> |---|---|
+> | **v2 — em campo e publicada** | ZMPT101B → Arduino → ESP-01. É o que este README descreve abaixo. |
+> | **v3 — em desenvolvimento** | ZMPT **retirado**, ESP-01 **substituído por ESP32 com RTC**, detecção pela própria alimentação do Arduino e **power bank** no lugar do no-break. Documentação: [`esp32/README.md`](esp32/README.md). |
+>
+> A v3 **ainda não foi validada em campo** — falta calibrar o limiar com uma
+> queda real. Enquanto isso, as seções abaixo seguem valendo para a v2.
+
 Sistema embarcado, de baixo custo e **sem assinaturas**, que detecta queda e
 restauração da energia da rede (**COPEL**) em Antonina-PR e publica cada evento em:
 
@@ -191,8 +201,9 @@ Os mesmos arquivos `config.h` / `config.example.h` existem em `wifi_server/`.
 
 | Pasta | Status | Descrição |
 |---|---|---|
-| `arduino/` | ✅ ativo | firmware do sensor (PlatformIO, ATmega328P) |
-| `gateway/` | ✅ ativo | firmware do ESP-01 (Discord + Pushbullet + NTP) |
+| `arduino/` | ✅ ativo | firmware do sensor (PlatformIO, ATmega328P) — **v3.1** mede a rua pelo ZMPT no A0 |
+| `esp32/` | 🚧 v3 | gateway ESP32 com RTC interno, fila de mensagens e checkpoint (ver [`esp32/README.md`](esp32/README.md)) |
+| `gateway/` | ✅ v2 em campo | firmware do ESP-01 (Discord + Pushbullet + NTP) |
 | `wifi_server/` | 🧪 teste | servidor web para validar o hardware do ESP-01 |
 | `docs/` | ✅ | arquitetura e protocolo UART |
 | `sensor/` | 📦 legado | experimentos antigos (IFTTT, MQTT, frames binários) |
@@ -208,6 +219,11 @@ Os mesmos arquivos `config.h` / `config.example.h` existem em `wifi_server/`.
 | Detecção por **presença** | sem depender de calibração de tensão |
 | Sem RTC / bateria | o tempo vem do NTP e do próprio Discord |
 | No-break | o alerta precisa ser enviado **enquanto** a rua está sem energia |
+| **v3: power bank no lugar do no-break** | o no-break não pôde ser mantido |
+| **v3.0: ZMPT retirado** | tentativa de detectar a queda pela própria alimentação (Vcc via bandgap) — exigia calibração sem multímetro |
+| **v3.1: ZMPT voltou, Vcc removido** | o método pela fonte não media a rua e dependia do pass-through do power bank; o ZMPT dá a resposta direta, sem calibração |
+| **v3.0: ESP32 + RTC** | o roteador cai junto com a rua, então sem NTP durante a queda — o RTC interno carimba o momento e a fila entrega quando a rede volta |
+| **v3.0: checkpoint na flash** | cobre o caso do power bank esgotar e tudo desligar |
 
 ## Licença
 

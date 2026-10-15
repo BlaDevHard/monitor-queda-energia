@@ -1,5 +1,9 @@
 # ---- Segredos (NUNCA versionar) ----
+# Vale para QUALQUER copia em qualquer pasta: se o nome for config.h,
+# nao sobe. O do esp32 tem WiFi, token do Pushbullet e webhook do
+# Discord — subir isso e entregar a conta pra quem passar por aqui.
 config.h
+**/config.h
 
 # ---- Artefatos de build ----
 .pio/
