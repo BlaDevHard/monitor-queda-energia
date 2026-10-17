@@ -145,6 +145,12 @@ Arduino na mesma linha.
 
 ## Firmware
 
+> **Nota (v3.2):** o fluxo **em campo** hoje é o **ESP32** como gateway —
+> ver [`esp32/README.md`](esp32/README.md) e
+> `cd esp32 && pio run -e gateway_uart -t upload`. As subseções **2 e 3**
+> abaixo (ESP‑01 via Arduino IDE) são da geração **v2** e ficam aqui só
+> como referência; os arquivos estão em [`legacy/`](legacy/).
+
 ### 1. Sensor — Arduino (PlatformIO)
 
 ```bash
@@ -152,10 +158,10 @@ cd arduino
 pio run -e uno -t upload        # placa em /dev/ttyUSB* ou /dev/ttyACM*
 ```
 
-### 2. Gateway — ESP-01 (Arduino IDE 1.8.x + esp8266 3.1.2)
+### 2. Gateway — ESP-01 (Arduino IDE 1.8.x + esp8266 3.1.2) — legado
 
 ```bash
-cd gateway
+cd legacy/gateway
 # compilação via linha de comando (opcional):
 arduino --verify gateway.ino --board esp8266:esp8266:generic --pref flash=1M64
 ```
@@ -172,9 +178,9 @@ arduino --verify gateway.ino --board esp8266:esp8266:generic --pref flash=1M64
 - Nunca alimente o ESP-01 com 5 V direto
 - Feche o monitor serial antes de gravar
 
-### 3. Teste de hardware — servidor WiFi (opcional)
+### 3. Teste de hardware — servidor WiFi (opcional) — legado
 
-A pasta [`wifi_server/`](wifi_server/) sobe uma página simples que mostra IP,
+A pasta [`legacy/wifi_server/`](legacy/wifi_server/) sobe uma página simples que mostra IP,
 sinal e o último dado do Arduino — útil para validar o ESP-01 antes de gravar
 o gateway:
 
@@ -184,33 +190,38 @@ http://<ip-do-esp>
 
 ## Configuração
 
-O gateway lê tudo de `gateway/config.h` (**não versionado**):
+O gateway **ativo (ESP32)** lê tudo de `esp32/include/config.h`
+(**não versionado**; o `esp32/include/config.example.h` versionado mostra o
+modelo):
 
 ```bash
-cd gateway
+cd esp32/include
 cp config.example.h config.h    # e edite com seus dados
 ```
 
-| Variável | Descrição |
+> A tabela abaixo é da geração **v2 (ESP‑01)** e serve de referência; o
+> ESP32 usa variáveis equivalentes em [`esp32/include/config.example.h`](esp32/include/config.example.h)
+> (inclui também `MQTT_*` e parâmetros de fila/checkpoint).
+
+| Variável (v2, legado) | Descrição |
 |---|---|
-| `WIFI_SSID` / `WIFI_PASS` | rede **2,4 GHz** (ESP-01 não vê 5 GHz) |
+| `WIFI_SSID` / `WIFI_PASS` | rede **2,4 GHz** (ESP‑01/ESP32 não veem 5 GHz) |
 | `PB_TOKEN` | token do Pushbullet (Settings → Account) |
 | `DISCORD_URL` | webhook do canal (Editar canal → Integrações → Webhooks) |
 | `LOCAL_TXT` / `CEP_TXT` / `UC_TXT` | identificação exibida nas mensagens |
 
-Os mesmos arquivos `config.h` / `config.example.h` existem em `wifi_server/`.
+Os mesmos arquivos `config.h` / `config.example.h` da v2 existem em
+`legacy/gateway/` e `legacy/wifi_server/`.
 
 ## Estrutura do repositório
 
 | Pasta | Status | Descrição |
 |---|---|---|
 | `arduino/` | ✅ ativo | firmware do sensor (PlatformIO, ATmega328P) — **v3.2** mede a rua pelo ZMPT no A0 e reporta todo pulso |
-| `esp32/` | 🚧 v3 | gateway ESP32 com RTC interno, fila de mensagens e checkpoint (ver [`esp32/README.md`](esp32/README.md)) |
-| `gateway/` | ✅ v2 em campo | firmware do ESP-01 (Discord + Pushbullet + NTP) |
-| `wifi_server/` | 🧪 teste | servidor web para validar o hardware do ESP-01 |
-| `docs/` | ✅ | arquitetura e protocolo UART |
-| `sensor/` | 📦 legado | experimentos antigos (IFTTT, MQTT, frames binários) |
-| `esp01/` | 📦 legado | experimentos antigos do gateway |
+| `esp32/` | ✅ ativo | gateway ESP32 com RTC interno, fila de mensagens e checkpoint — **v3.2 em campo** (ver [`esp32/README.md`](esp32/README.md)) |
+| `docs/` | ✅ | arquitetura, protocolo UART e plano de OTA/qualidade |
+| `tools/` | ✅ | logger e leitor da serial |
+| `legacy/` | 📦 legado | geração **ESP‑01/v2** preservada como referência (ver [`legacy/README.md`](legacy/README.md)) — `gateway/`, `sensor/`, `esp01/`, `wifi_server/` |
 
 ## Histórico de decisões
 
