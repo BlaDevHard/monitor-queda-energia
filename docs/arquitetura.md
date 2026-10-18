@@ -85,9 +85,40 @@ O ZMPT voltou ao A0 e mede a rede direto. `VCC_LIMITE_MV`,
   1. **NTP** — autoritativo; só sincroniza quando há rede
   2. **RTC interno** — mantém a hora durante a queda (sem NTP)
   3. **Checkpoint na flash** — epoch salvo, usado quando a placa perde energia
-- **Sem NTP, a hora é marcada como aproximada** na própria mensagem.
+- **Sem NTP, a hora é marcada como aproximada** na própria mensagem
+  (detalhes no box "Hora aproximada" abaixo).
 - **Destinos**: Discord (webhook), Pushbullet (token), MQTT retido, HTTP local.
 - **Segredo**: WiFi/tokens/identificação ficam em `config.h` (**não versionado**).
+
+> **⏱️ Hora aproximada — por que existe o "⚠️"**
+>
+> O ESP32 **não tem relógio com bateria**. A hora vem de duas fontes:
+> **NTP** (autoritativo, exige WiFi) e o **RTC interno** (contador do
+> chip, segue correndo enquanto houver energia, com deriva de poucos
+> segundos por dia).
+>
+> O caso-limite: **a rua cai e o ESP32 reinicia no meio do blecaute**
+> (pico ao voltar, watchdog, etc.). Sem rua não há roteador, sem
+> roteador não há WiFi, e **sem WiFi não há NTP** — o chip não sabe
+> que horas são. Duas defesas seguram o problema:
+>
+> 1. **Checkpoint na flash** — o epoch é salvo a cada 60 s; no boot a
+>    placa restaura a última hora conhecida. Mas se o power bank
+>    esgotar e tudo desligar por horas, a hora restaurada está velha:
+>    o relógio conta do ponto do checkpoint, sem saber quanto tempo
+>    passou.
+> 2. **`relogioValido()` retorna false** enquanto não houve sync NTP
+>    desde o boot — e o `notaHora()` insere a linha
+>    `⚠️ hora aproximada (sem NTP no momento)` antes da hora em toda
+>    mensagem nessa condição (ex.: `SISTEMA ONLINE` de boot, relatório
+>    horário). No JSON/MQTT o mesmo estado vira `hora_conf: false`.
+>
+> **Por que marcar em vez de omitir:** o Discord é o log auditável, e a
+> apuração de qualidade (DRP/DRC, que o MedTens trabalha) exige saber
+> quais registros têm hora confiável. Marcar ⚠️ deixa **explícito**
+> quais mensagens aproximadas não valem para apuração — mentir a hora
+> silenciosamente invalidaria o histórico inteiro. Assim que o WiFi
+> volta e o NTP calibra, as mensagens seguintes saem limpas.
 
 ## Máquina de estados
 

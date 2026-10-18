@@ -219,7 +219,7 @@ Os mesmos arquivos `config.h` / `config.example.h` da v2 existem em
 |---|---|---|
 | `arduino/` | ✅ ativo | firmware do sensor (PlatformIO, ATmega328P) — **v3.2** mede a rua pelo ZMPT no A0 e reporta todo pulso |
 | `esp32/` | ✅ ativo | gateway ESP32 com RTC interno, fila de mensagens e checkpoint — **v3.2 em campo** (ver [`esp32/README.md`](esp32/README.md)) |
-| `docs/` | ✅ | arquitetura, protocolo UART e plano de OTA/qualidade |
+| `docs/` | ✅ | arquitetura, protocolo UART e plano de OTA/qualidade — inclui o mapa mental do update do ESP32: [`docs/esp32-update-antes-depois.md`](docs/esp32-update-antes-depois.md) (como está × como vai ficar) |
 | `tools/` | ✅ | logger e leitor da serial |
 | `legacy/` | 📦 legado | geração **ESP‑01/v2** preservada como referência (ver [`legacy/README.md`](legacy/README.md)) — `gateway/`, `sensor/`, `esp01/`, `wifi_server/` |
 
