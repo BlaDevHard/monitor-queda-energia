@@ -59,6 +59,13 @@ void alertaHardware(const String& titulo, const String& corpo);
 // estado que nao muda mais porque o sensor morreu).
 void sensorPulsou();
 
+// ---- frequencia da rede (Hz) ----
+// O Arduino mede ~60 Hz e manda na linha de diagnostico "#ZMPT ...",
+// que comeca com "#" — fora do contrato JSON, entao o gateway antes
+// descartava. Chamar a partir dessa linha. Aceita 40..70 Hz; valores
+// fora disso sao ruido e sao ignorados. hz <= 0 limpa (sem medida).
+void sensorFrequencia(float hz);
+
 // ---- registro de pulso curto (v3.2) ----
 // Chamar com cada linha {"pulso":...} vinda do Arduino. O nucleo
 // guarda a duracao medida e, quando passa JANELA_PULSO_MS sem pulso,

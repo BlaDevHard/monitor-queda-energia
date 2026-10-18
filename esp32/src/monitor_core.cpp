@@ -36,7 +36,7 @@
 #define HORARIA_MS 3600000UL   // relatorio horario: 60 min
 #endif
 #ifndef K_VRMS
-#define K_VRMS 0.2976F   // calibracao 18/10/2026 (ponto 1; ver nota em config.example.h)
+#define K_VRMS 0.2987F   // regressao de 5 pontos, 18/10/2026 (ver config.example.h)
 #endif
 #ifndef V_NOM
 #define V_NOM 127        // tensao nominal da rede (PRODIST módulo 8)
@@ -77,6 +77,9 @@ static String identificacao();
 static String agoraStr();
 static String notaHora(time_t t);
 static void publicar(const String& titulo, const String& corpo, int cor);
+// Definida junto da logica de queda (mais abaixo); o relatorio
+// horario, que vem antes, ja a referencia.
+static float vrmsAtual();
 
 // O Arduino reporta CADA pulso (queda e volta) com a duracao que
 // ele mesmo mediu. Aqui juntamos varios pulsos num relatorio so —
@@ -281,9 +284,7 @@ static void enviarRelatorioPulsos() {
   msg += "Detalhe:\n";
   for (int i = 0; i < pulsoQtd; i++) {
     msg += "  " + (pulsos[i].hora > 0 ? relogioFormatar(pulsos[i].hora) : String("?"));
-    msg += "  " + String(pulsos[i].durMs) + " ms";
-    if (pulsos[i].ampMin >= 0) msg += "  amp " + String(pulsos[i].ampMin);
-    msg += "\n";
+    msg += "  " + String(pulsos[i].durMs) + " ms\n";
   }
   if (fallbackMs > 0) {
     msg += "  " + (pulsoSemEnergiaDesde > 0 ? relogioFormatar(pulsoSemEnergiaDesde) : String("?"));
@@ -309,10 +310,6 @@ static void enviarRelatorioPulsos() {
   pulsoQuedaContada = false;
 }
 
-// republicacao periodica do link da documentacao (ver coreLoop)
-static unsigned long ultimaDocs = 0;
-static bool ultimaDocsValido = false;
-
 // Relatorio horario de saude do fornecimento (prioridade 3 do
 // plano). Timer contado do ULTIMO ENVIO, nao do relogio de parede:
 // sem rua nao ha roteador, logo nao ha WiFi — um horario que vence
@@ -322,12 +319,51 @@ static bool ultimaDocsValido = false;
 static unsigned long ultimaHoraria = 0;
 static bool horariaValido = false;
 
+// --- Acumuladores por hora (subtask 3.1 do plano) ---
+// Contam desde o ultimo relatorio horario e zeram junto com ele.
+//
+// DECISAO: acumular no FIM da queda (nao tick a tick). Funciona porque
+// o relatorio horario SO e publicado com emQueda==false — toda queda
+// da janela ja terminou quando o relatorio sai. Um tick a tick daria o
+// mesmo numero e custaria uma tarefa extra rodando sempre.
+static int quedasHora = 0;                  // quedas encerradas na janela
+static unsigned long segSemEnergiaHora = 0; // segundos totais sem rua
+
+// --- Minimo / maximo / media da TENSAO na janela (VACmin/max/med) ---
+// Amostrado a cada leitura do Arduino (~2 leituras/s) e zerado junto
+// com o relatorio horario.
+//
+// DECISAO: so amostra quando ha sinal (amp >= 10, ou seja vrms > 0).
+// Sem rua o ZMPT entrega ruido do ADC; meter "0 V" na amostra
+// desmoronaria a media de uma hora em que a rede esteve 99% do tempo
+// normal — e o minimo viraria sempre 0, sem dizer nada.
+static float vrmsMinHora = 0.0f;
+static float vrmsMaxHora = 0.0f;
+static float vrmsSomaHora = 0.0f;          // soma p/ calcular a media
+static unsigned long vrmsNHora = 0;        // amostras validas na janela
+
 void sensorPulsou() {
   ultimaLeituraSensor = millis();
   if (sensorSilencioso) {
     sensorSilencioso = false;
     Serial.println("Sensor: voltou a falar");
   }
+}
+
+// --- Frequencia da rede medida pelo Arduino ---
+// O Arduino calcula ~60 Hz e manda na linha de diagnostico
+// "#ZMPT amp=... f=60.1Hz". Essa linha comeca com "#", cai fora do
+// contrato JSON e o gateway a descartava — entao a frequencia era
+// MEDIDA e PERDIDA no caminho. Guardamos aqui.
+//
+// Faixa 40..70 Hz: fora disso nao ha como saber se e ruido ou um
+// cruzamento espurio, e reportar "1234 Hz" seria pior que reportar
+// nada. -1 = nenhuma medida valida desde o boot.
+static float freqHz = -1.0f;
+
+void sensorFrequencia(float hz) {
+  if (hz < 40.0f || hz > 70.0f) return;   // ruido, descarta
+  freqHz = hz;
 }
 
 static WiFiClientSecure clienteSeguro;
@@ -368,24 +404,56 @@ static String identificacao() {
   return String(LOCAL_TXT) + "\n" + CEP_TXT + "\n" + UC_TXT + "\n";
 }
 
-// Caminho da documentacao. Aparece na SISTEMA ONLINE e e
-// republicado sozinho a cada DOCS_REPUBLICA_MS: no Discord a
-// conversa rola, o link do boot sai de vista em poucos dias, e o
-// pior momento para procurar a documentacao e quando a rua cai.
-static String documentacao() {
-  return String("Documentação do projeto em:\n") + DOCS_URL + "\n";
-}
-
 // Relatorio horario de saude (prioridade 3): prova de vida do
 // monitor + confirmacao de que o fornecimento permanece ativo.
 // So sai com rua ligada, WiFi em pie e fila vazia — nunca compete
 // com alerta de queda.
+//
+// Payload minimo do plano (prioridade 3d). Duas ausencias de proposito:
+//
+//  - "fila": o relatorio so e publicado quando filaQtd == 0 (gate em
+//    coreLoop). Reportar "Fila: 0" seria uma tautologia.
+//  - "tipo":"relatorio_hora": o Discord recebe texto, nao JSON. O JSON
+//    com esse tipo pertence ao consumidor MQTT; aqui vai a leitura
+//    humana do mesmo conteudo.
 static void enviarRelatorioHorario() {
   String msg = "Situação: SERVIÇO PERMANECE ATIVO\n";
   msg += identificacao();
   msg += notaHora(relogioAgora()) + agoraStr() + "\n";
-  msg += "Monitor de Quedas - Antonina-PR\n";
+
+  // --- Telemetria da janela ---
+  msg += "\n";
+  if (ampAtual >= 10) {
+    // amp < 10 e ruido do ADC sem rua (ver vrmsAtual): reportar
+    // "2.1 V" inventado seria pior que dizer que nao ha sinal.
+    msg += "Rede: " + String(vrmsAtual(), 1) + " V";
+    msg += " (nominal " + String(V_NOM) + " V)\n";
+  } else {
+    msg += "Rede: sem sinal (rua desligada)\n";
+  }
+  // VACmin / VACmax / VACmed da janela de 1 h (ver vrmsMinHora..).
+  // Sem amostra valida nao ha o que mostrar — nao imprime a linha.
+  if (vrmsNHora > 0) {
+    msg += "Nesta hora — mín " + String(vrmsMinHora, 1) +
+           " V · média " + String(vrmsSomaHora / (float)vrmsNHora, 1) +
+           " V · máx " + String(vrmsMaxHora, 1) + " V\n";
+  }
+  // freqHz = -1 ate a primeira medida valida; sem isso sairia "-1.0 Hz".
+  if (freqHz > 0)
+    msg += "Frequência: " + String(freqHz, 1) + " Hz\n";
+  msg += "Quedas nesta hora: " + String(quedasHora);
+  msg += "  ·  Sem energia: " + String(segSemEnergiaHora / 60) + " min\n";
+  msg += "Uptime: " + relogioFormatarDuracao(millis() / 1000) + "\n";
+
+  // O rodape "Monitor de Quedas - Antonina-PR" ja sai no footer do
+  // embed — aqui ele aparecia DUAS vezes.
   publicar("SERVIÇO PERMANECE ATIVO", msg, 0x00FF00);   // verde
+
+  // Fecha a janela: o proximo relatorio conta do zero.
+  quedasHora = 0;
+  segSemEnergiaHora = 0;
+  vrmsMinHora = vrmsMaxHora = vrmsSomaHora = 0.0f;
+  vrmsNHora = 0;
 }
 
 static String escapar(String s) {
@@ -655,6 +723,10 @@ static void mqttPublicarEstado() {
   payload += ",\"amp\":" + String(ampAtual);
   payload += ",\"vrms\":" + String(vrmsAtual(), 1);
   payload += ",\"v_nom\":" + String(V_NOM);
+  // -1 = nenhuma medida valida (ver sensorFrequencia). Reportar -1 e
+  // melhor que omitir: o consumidor distingue "medido ruim" de
+  // "nao medido".
+  payload += ",\"freq_hz\":" + String(freqHz, 1);
   payload += ",\"em_queda\":" + String(emQueda ? "true" : "false");
   payload += ",\"sinal_saturado\":" + String(sinalSaturado ? "true" : "false");
   payload += ",\"ts\":" + String((unsigned long)relogioAgora());
@@ -758,8 +830,10 @@ static void rotaEstado() {
   json += ",\"amp\":" + String(ampAtual);
   json += ",\"vrms\":" + String(vrmsAtual(), 1);
   json += ",\"v_nom\":" + String(V_NOM);
+  json += ",\"freq_hz\":" + String(freqHz, 1);   // -1 = sem medida valida
   json += ",\"em_queda\":" + String(emQueda ? "true" : "false");
-  json += ",\"amp\":" + String(ampAtual);
+  // (o "amp" estava duplicado aqui — bug cosmético corrigido; parsers
+  // padrao ficam com o primeiro, entao remover o segundo nao muda nada)
   json += ",\"sinal_saturado\":" + String(sinalSaturado ? "true" : "false");
   json += ",\"desde\":\"" + horaMudanca + "\"";
   json += ",\"duracao_s\":" + String((unsigned long)(emQueda ? duracaoQuedaMs() / 1000 : 0));
@@ -787,6 +861,17 @@ void processarEstado(const String& energia, int amp) {
   sensorPulsou();                              // batimento do watchdog
   ampAtual = amp;                              // amplitude do ZMPT
 
+  // Amostra de tensao para o VACmin/max/med do relatorio horario.
+  // vrmsAtual() devolve 0 quando amp < 10 (sem rua = ruido), entao o
+  // filtro "v > 0" descarta a rua caida sem precisar checar de novo.
+  float vAmostra = vrmsAtual();
+  if (vAmostra > 0.0f) {
+    if (vrmsNHora == 0 || vAmostra < vrmsMinHora) vrmsMinHora = vAmostra;
+    if (vrmsNHora == 0 || vAmostra > vrmsMaxHora) vrmsMaxHora = vAmostra;
+    vrmsSomaHora += vAmostra;
+    vrmsNHora++;
+  }
+
   time_t agora = relogioAgora();
 
   // --- 1a leitura apos o boot ---
@@ -796,6 +881,10 @@ void processarEstado(const String& energia, int amp) {
     emQueda = (energia == "ausente");
     tsQueda = millis();
     tsMudanca = millis();
+    // Boot no meio de um blecaute: conta como queda da janela atual.
+    // Sem isto, o "sem energia" do proximo relatorio nao bateria com
+    // a experiencia de quem viu as luzes cairem.
+    if (emQueda) quedasHora++;
     horaMudanca = emQueda && cpExiste && cpDesde > 0
                     ? relogioFormatar(cpDesde)
                     : (agora > 0 ? relogioFormatar(agora) : "-");
@@ -838,7 +927,9 @@ void processarEstado(const String& energia, int amp) {
     String titulo = emQueda ? String("QUEDA") : String("SERVIÇO ATIVO");
     String msg = "Estado ao iniciar o sistema\n";
     msg += "Situação: " + titulo + "\n";
-    if (ampAtual >= 0) msg += "Amplitude ZMPT: " + String(ampAtual) + "\n";
+    if (ampAtual >= 10)
+      msg += "Rede: " + String(vrmsAtual(), 1) + " V (nominal " +
+             String(V_NOM) + " V)\n";
     if (emQueda && cpExiste && cpEmQueda && cpDesde > 0) {
       msg += "Queda em andamento desde: " + relogioFormatar(cpDesde) + "\n";
       msg += notaHora(cpDesde);
@@ -861,6 +952,7 @@ void processarEstado(const String& energia, int amp) {
     tsQuedaEpoch = agora;
     tsMudanca = millis();
     horaMudanca = agora > 0 ? relogioFormatar(agora) : "-";
+    quedasHora++;   // acumulador do relatorio horario (subtask 3.1)
 
     // A hora JA e carimbada aqui, antes da graca. E por isso que o
     // alerta publicado 8 s depois continua com o horario certo da
@@ -889,12 +981,22 @@ void processarEstado(const String& energia, int amp) {
     estadoAtual = energia;
     tsMudanca = millis();
     horaMudanca = agora > 0 ? relogioFormatar(agora) : "-";
+    // Acumulador do relatorio horario (subtask 3.1). Feito aqui, no
+    // fechamento da queda — o relatorio so sai com rua ligada, entao
+    // toda queda da janela ja fechou nesse ponto.
+    segSemEnergiaHora += durUltimaQueda / 1000UL;
 
     String msg = "Energia restabelecida\n";
     msg += "Início da queda: " + (inicio > 0 ? relogioFormatar(inicio) : String("?")) + "\n";
     msg += "Retorno: " + (agora > 0 ? relogioFormatar(agora) : String("?")) + "\n";
     msg += "Duração: " + relogioFormatarDuracao(durUltimaQueda / 1000) + "\n";
-    if (ampAtual >= 0) msg += "Amplitude ZMPT: " + String(ampAtual) + "\n";
+    // Tensao de volta: mostra os volts, nao so a amplitude crua —
+    // confirma de cara se a rede retornou NORMAL ou baixa. Mesmo
+    // formato do relatorio horário. amp < 10 = so ruido do ADC, entao
+    // nao ha tensao para reportar (ver vrmsAtual).
+    if (ampAtual >= 10)
+      msg += "Rede: " + String(vrmsAtual(), 1) + " V (nominal " +
+             String(V_NOM) + " V)\n";
     msg += notaHora(inicio);
     msg += identificacao();
     msg += agoraStr();
@@ -958,13 +1060,8 @@ void coreIniciar(const char* nome) {
   if (cpExiste)
     msg += "Último estado conhecido: " + String(cpEmQueda ? "EM QUEDA" : "serviço ativo") + "\n";
   if (!relogioConfia()) msg += "⚠️ sem NTP no boot — hora aproximada\n";
-  msg += documentacao();
   msg += identificacao() + agoraStr();
   publicar("SISTEMA ONLINE", msg, 0x00FFFF);   // ciano
-
-  // Daqui a DOCS_REPUBLICA_MS o link volta sozinho para o Discord.
-  ultimaDocs = millis();
-  ultimaDocsValido = true;
 
   // Primeiro relatorio HORARIA_MS depois do boot; a partir dai,
   // HORARIA_MS apos cada envio (ver coreLoop).
@@ -1070,19 +1167,9 @@ void coreLoop() {
     if (estadoInicialEnviado) salvarCheckpoint();
   }
 
-  // --- Republica o link da documentacao a cada DOCS_REPUBLICA_MS ---
-  // O Discord rola a conversa: o link do boot sai de vista em
-  // poucos dias. Republicar mantem o caminho da documentacao a um
-  // clique de distancia o tempo todo.
-  if (ultimaDocsValido && millis() - ultimaDocs > DOCS_REPUBLICA_MS) {
-    ultimaDocs = millis();
-    String msg = documentacao();
-    msg += "Republicação periódica — o link acima é enviado a cada 7 dias\n";
-    msg += "para não sair da conversa.\n";
-    msg += identificacao() + agoraStr();
-    Serial.println("Republicando o link da documentacao");
-    publicar("DOCUMENTAÇÃO DO PROJETO", msg, 0x00FFFF);   // ciano
-  }
+  // (Republicação do link da documentação no Discord — REMOVIDA a
+  //  pedido: o URL e o texto de rodapé poluíam a conversa. O link
+  //  segue no README e nos docs do repo.)
 
   // --- Watchdog: Arduino parou de falar? ---
   // O sensor manda uma linha a cada ~500 ms. Se o Arduino morrer
@@ -1092,11 +1179,9 @@ void coreLoop() {
   if (estadoInicialEnviado && ultimaLeituraSensor > 0 && !sensorSilencioso &&
       millis() - ultimaLeituraSensor > SENSOR_SILENCIO_MS) {
     sensorSilencioso = true;
-    String msg = "O Arduino parou de enviar dados ha mais de " +
+    String msg = "O sensor parou de enviar dados ha mais de " +
                  relogioFormatarDuracao(SENSOR_SILENCIO_MS / 1000) + ".\n";
-    msg += "O estado exibido pode estar desatualizado.\n";
-    msg += "Confira a ligacao UART (TX do Arduino -> divisor -> GPIO16) e\n";
-    msg += "se o Arduino continua alimentado.\n\n";
+    msg += "O estado exibido pode estar desatualizado.\n\n";
     msg += identificacao() + agoraStr();
     Serial.println("ALERTA: sensor em silencio");
     alertaHardware("⚠️ SENSOR EM SILÊNCIO", msg);
@@ -1117,8 +1202,7 @@ void coreLoop() {
     String msg = "Sem energia na rua\n";
     msg += "Início: " + (inicio > 0 ? relogioFormatar(inicio) : String("?")) + "\n";
     msg += "Duração até agora: " + relogioFormatarDuracao((millis() - tsQueda) / 1000) + "\n";
-    msg += "Detecção: o ZMPT101B do Arduino parou de ver alternada na rede\n";
-    if (ampAtual >= 0) msg += "Amplitude ZMPT: " + String(ampAtual) + " (limiar 65)\n";
+    msg += "Detecção: o sensor não vê mais a rede elétrica\n";
     msg += notaHora(inicio);
     msg += identificacao();
     msg += agoraStr();

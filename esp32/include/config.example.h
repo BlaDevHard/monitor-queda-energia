@@ -34,13 +34,10 @@ const char* const UC_TXT    = "UNIDADE CONSUMIDORA: 000000000000000";
 // ============================================================
 // Documentacao do projeto
 // ============================================================
-// URL publica do repositorio. Enviada na mensagem SISTEMA ONLINE
-// e republicada sozinha a cada DOCS_REPUBLICA_MS. Motivo: no
-// Discord a conversa rola, o link do boot sai de vista em poucos
-// dias, e o pior momento para procurar a documentacao e quando a
-// rua cai.
+// URL publica do repositorio. NAO e mais enviada ao Discord
+// (removido a pedido — poluia a conversa com link + texto de
+// rodape a cada 7 dias). Fica para os docs/ e o README.
 const char* const DOCS_URL = "https://github.com/SEU_USUARIO/SEU_REPO";
-#define DOCS_REPUBLICA_MS 604800000UL   // 7 dias (604800000 ms)
 
 // ============================================================
 // MQTT — base para o futuro app Android
@@ -84,19 +81,18 @@ const char* const MQTT_TOPICO_STATUS = "monitor/energia/status";
 // da rede, nao por variac. Nenhum ponto saturado.
 // Detalhe, dados e plano: docs/calibracao-zmpt.md
 //
-// POR QUE 0.2976 AQUI e nao 0.2987? O firmware foi gravado com o
-// valor do ponto 1; o delta para 0.2987 e de 0,37% — MENOR que a
-// incerteza do proprio multimetro (~0,5-0,7%). Decisao 18/10:
-// manter e corrigir na PROXIMA gravacao ( junto do OTA), porque
-// regravar agora so por isso reiniciaria a validacao de campo da
-// v3.3 sem ganho mensuravel.
+// HISTORICO DO VALOR: a gravacao de 14:32 usou 0.2976 (so o ponto 1
+// existia). O delta para 0.2987 e de 0,37% — MENOR que a incerteza do
+// proprio multimetro (~0,5-0,7%) — entao a correcao foi adiada para a
+// PROXIMA gravacao em vez de reiniciar a validacao de campo por nada.
+// Corrigido na gravacao seguinte (relatorio horario com telemetria).
 //
 // ATENCAO: valida p/ o MONITOR (volts, swell/under-voltage), NAO p/
 // apuracao DRP/DRC do MedTens — isso exige os 9 pontos PRODIST
 // (90-150 V) com variac.
 //
 // V_NOM: nominal da rede monitorada (PRODIST módulo 8: 127 V).
-#define K_VRMS 0.2976   // volts RMS por conta pico-a-pico
+#define K_VRMS 0.2987   // volts RMS por conta pico-a-pico
 #define V_NOM  127      // tensao nominal da rede (V)
 
 // ============================================================
