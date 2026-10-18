@@ -351,14 +351,20 @@ void sensorPulsou() {
 }
 
 // --- Frequencia da rede medida pelo Arduino ---
-// O Arduino calcula ~60 Hz e manda na linha de diagnostico
+// O Arduino calcula a frequencia e manda na linha de diagnostico
 // "#ZMPT amp=... f=60.1Hz". Essa linha comeca com "#", cai fora do
 // contrato JSON e o gateway a descartava — entao a frequencia era
 // MEDIDA e PERDIDA no caminho. Guardamos aqui.
 //
 // Faixa 40..70 Hz: fora disso nao ha como saber se e ruido ou um
-// cruzamento espurio, e reportar "1234 Hz" seria pior que reportar
-// nada. -1 = nenhuma medida valida desde o boot.
+// cruzamento espurio. -1 = nenhuma medida valida desde o boot.
+//
+// ⚠ RESOLUCAO ~0,9 Hz — NAO mandar para texto humano:
+// a formula do Arduino (contarCruzamentos/main_zmpt_teste.cpp) conta
+// cruzamentos INTEIROS numa janela fixa de ~1500 amostras, o que
+// quantiza o resultado em passos de ~0,9 Hz. Em 45 amostras de campo
+// (18/10) so apareceram 4 valores: 58.0, 58.9, 59.8, 60.7. A rede real
+// varia ~+-0,1 Hz. Serve para depuracao via API, NAO para o relatorio.
 static float freqHz = -1.0f;
 
 void sensorFrequencia(float hz) {
@@ -440,9 +446,17 @@ static void enviarRelatorioHorario() {
            " V · média " + String(vrmsSomaHora / (float)vrmsNHora, 1) +
            " V · máx " + String(vrmsMaxHora, 1) + " V\n";
   }
-  // freqHz = -1 ate a primeira medida valida; sem isso sairia "-1.0 Hz".
-  if (freqHz > 0)
-    msg += "Frequência: " + String(freqHz, 1) + " Hz\n";
+  // FREQUENCIA NAO VAI AQUI (decisao 18/10).
+  //
+  // A medicao do Arduino resolve ~0,9 Hz: em 45 amostras so apareceram
+  // 4 valores distintos (58.0 / 58.9 / 59.8 / 60.7). A rede real de
+  // 60 Hz varia ~+-0,1 Hz e a PRODIST tolera +-0,5 Hz — entao 1 em cada
+  // 5 amostras mostraria 58.9 Hz, fora de faixa, sugerindo problema na
+  // RUA quando o problema e da MEDICAO. Texto pra humano nao pode
+  // assustar a toa.
+  //
+  // freq_hz continua no /estado e no MQTT: la e campo de depuracao e o
+  // consumidor sabe interpretar (e -1 = nenhuma medida valida).
   msg += "Quedas nesta hora: " + String(quedasHora);
   msg += "  ·  Sem energia: " + String(segSemEnergiaHora / 60) + " min\n";
   msg += "Uptime: " + relogioFormatarDuracao(millis() / 1000) + "\n";
