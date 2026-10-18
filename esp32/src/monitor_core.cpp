@@ -17,6 +17,9 @@
 #include <Preferences.h>
 #include <time.h>
 
+#include <Update.h>        // OTA 1.3 — grava a nova imagem
+#include <esp_ota_ops.h>   // OTA 1.5 — rollback + slot ativo
+
 #include "config.h"   // WiFi, tokens, MQTT, pinos (nao versionado)
 
 // ---- padroes (para compilar com um config.h antigo) ----
@@ -43,6 +46,36 @@
 #endif
 #ifndef MODO_MUDO
 #define MODO_MUDO 0   // 1 = bancada: nada sai p/ Discord, Pushbullet ou MQTT
+#endif
+
+// ---- OTA: atualizacao do firmware pela rede (subtasks 1.2..1.6) ----
+//
+// Sem OTA_USUARIO e OTA_SENHA definidos no config.h, o endpoint
+// /update NEM E REGISTRADO. Um config.h antigo ou incompleto nao pode
+// ganhar por acidente uma porta de regravacao aberta na rede — e se
+// alguem marcar OTA_ATIVO=1 sem credencial, isso vira ERRO DE
+// COMPILACAO (ver #error abaixo), nao uma senha fraca de fabrica.
+#if defined(OTA_USUARIO) && defined(OTA_SENHA)
+#ifndef OTA_ATIVO
+#define OTA_ATIVO 1
+#endif
+#else
+#ifndef OTA_ATIVO
+#define OTA_ATIVO 0
+#endif
+#endif
+
+#if OTA_ATIVO && !(defined(OTA_USUARIO) && defined(OTA_SENHA))
+#error "OTA_ATIVO=1 exige OTA_USUARIO e OTA_SENHA no config.h"
+#endif
+
+// Vida minima antes de confirmar a imagem nova (ver esp_ota_ops.h):
+// enquanto a imagem esta em ESP_OTA_IMG_PENDING_VERIFY, qualquer
+// reset antes da confirmacao volta para a versao anterior. Tempo de
+// mais nao protege nada e atrasa a confirmacao; tempo de menos
+// confirma cedo demais. 30 s + sensor falando (em coreLoop).
+#ifndef OTA_CONFIRMA_MS
+#define OTA_CONFIRMA_MS 30000UL
 #endif
 
 #ifndef LED_BUILTIN
@@ -742,6 +775,306 @@ void alertaHardware(const String& titulo, const String& corpo) {
 }
 
 // ==================================================================
+//  OTA — ATUALIZACAO DO FIRMWARE PELA REDE
+//  subtasks 1.2 .. 1.6 de docs/plano-ota-qualidade.md
+// ==================================================================
+//
+// 1.2 TRANSPORTE: WebServer + Update (POST multipart em /update).
+//     O WebServer ja roda no mesmo socket do /estado, nao traz
+//     dependencia nova, e a subtask 1.1 ja garante que o socket
+//     sobrevive a reconexao do WiFi (servidor.begin() no return do
+//     WiFi). ArduinoOTA (mDNS) conviveria com uma segunda pilha de
+//     rede e ainda exigiria espota.py + senha.
+//
+// 1.3 Update.begin()/write()/end() com MD5 opcional no header X-MD5.
+//
+// 1.4 GATE: so com rua ligada, WiFi em pie e fila de alertas vazia.
+//     Um firmware novo no meio de um blecaute competiria com a
+//     deteccao — a janela errada para arriscar.
+//
+// 1.5 ROLLBACK de verdade — e e ISTO que faz o OTA ser utilizavel sem
+//     cabo na mao. O esquema, em ordem:
+//       - Update.end() com a imagem inteira troca o otadata;
+//       - no proximo boot a imagem nova nasce em
+//         ESP_OTA_IMG_PENDING_VERIFY e o bootloader ARMADA o rollback;
+//       - se ela panicar, estourar o watchdog ou reiniciar ANTES de
+//         ser confirmada, o bootloader vira IMG_ABORTED e volta para a
+//         imagem anterior sozinho;
+//       - a confirmacao e feita AQUI, quando o nucleo PROVA que
+//         funciona — esp_ota_mark_app_valid_cancel_rollback().
+//
+//     PEGADILHA (a que derrubou a primeira versao): o proprio nucleo
+//     Arduino ja confirma a imagem em initArduino(), ANTES do setup().
+//     cores/esp32/esp32-hal-misc.c:
+//
+//         bool verifyRollbackLater() __attribute__((weak));
+//         bool verifyRollbackLater() { return false; }   // confirma cedo
+//         void initArduino() {
+//           if(!verifyRollbackLater()){ ... if (PENDING_VERIFY) {
+//               if (verifyOta())  esp_ota_mark_app_valid_cancel_rollback();
+//               else              esp_ota_mark_app_invalid_rollback_and_reboot();
+//           }}}
+//
+//     Ambos sao __attribute__((weak)), entao sobrescrevemos aqui os
+//     DOIS: verifyRollbackLater()=true (ele fica quieto e nos deixa o
+//     rollback armado) e verifyOta()=true (nao deixamos ele decidir —
+//     ele nao tem como saber se o SENSOR funciona). Sem esta
+//     sobrescrita o estado nunca passa por PENDING e o 1.5 nao existe:
+//     era exatamente o que estava acontecendo, medido no /estado.
+//
+//     O que a bancada ja provou (subtask 1.6):
+//       - imagem valida    -> 200, reboot, slot troca app0<->app1,
+//                             estado NOVA -> PENDENTE -> VALIDA;
+//       - magic byte torto -> 500 "Magic byte Error", SEM reboot;
+//       - MD5 errado       -> 500 "MD5 Check Failed",  SEM reboot;
+//       - credencial errada-> 401, nao um byte gravado;
+//       - fim estragado    -> 500 "Could Not Activate The Firmware",
+//                             sem trocar o boot, SEM reboot. O erro vem
+//                             do proprio Update._verifyEnd(), que le o
+//                             que foi gravado antes de apontar o boot
+//                             para la.
+//     A queda de energia no MEIO da escrita tambem nao apaga a imagem
+//     boa: o otadata so muda la no fim do Update.end(), com a imagem
+//     completa e validada — se faltar luz no meio, o aparelho simples
+//     volta a antiga no proximo boot. O proprio Updater reforca isso:
+//     recusa qualquer arquivo que nao comece com 0xE9 ja no PRIMEIRO
+//     bloco escrito e SEGURA os 16 primeiros bytes ate o fim, para
+//     que uma imagem pela metade jamais pareca bootavel.
+//
+// 1.6 BANCADA OBRIGATORIA antes de campo: imagem valida, imagem
+//     corrompida, corte no meio do envio, credencial errada, gate
+//     bloqueando. Nao e opcional — e a unica forma de saber que o
+//     rollback funciona antes de precisar dele.
+//
+// SEGURANCA: o endpoint exige Basic Auth e, se o config.h nao tiver
+// credencial, nem e registrado (ver OTA_ATIVO la em cima).
+
+#if OTA_ATIVO
+
+// ==================================================================
+//  HOOKS DO NUCLEO ARDUINO — precisam vir ANTES de tudo
+// ==================================================================
+// cores/esp32/esp32-hal-misc.c declara os dois como __attribute__((weak))
+// e chama em initArduino(), ou seja ANTES do setup() e do coreIniciar().
+// Por isso sao extern "C" e por isso estao aqui: a definicao forte
+// sobrescreve a fraca do nucleo.
+//
+//   verifyRollbackLater() -> true
+//       Sem isso o nucleo confirma a imagem sozinho no boot e o
+//       PENDING_VERIFY some antes do meu codigo existir — e ai nao ha
+//       mais o que confirmar nem o que reverter. Medido: /estado
+//       mostrava ota_estado=VALIDA a partir do uptime 7 s.
+//
+//   verifyOta() -> true
+//       Nao deixamos o nucleo julgar. A unica prova que interessa e a
+//       nossa: o sensor tem que falar e o aparelho tem que ficar de
+//       pe por OTA_CONFIRMA_MS. Verificar em initArduino() seria
+//       cedo demais — nesse ponto o UART2 ainda nem foi aberto.
+extern "C" bool verifyRollbackLater() { return true; }
+extern "C" bool verifyOta()           { return true; }
+
+static bool otaRecebendo = false;    // upload autorizado, gravando
+static bool otaPronto = false;       // fim do envio com imagem validada
+static bool otaFalhou = false;
+static String otaMotivo = "";
+static String otaDestino = "?";      // rotulo do slot de destino
+static size_t otaBytes = 0;          // bytes efetivamente recebidos
+
+// Instante do boot, base da janela OTA_CONFIRMA_MS antes de aceitar a
+// imagem nova (1.5). O estado em si vem do otadata, nao de um flag —
+// ver otaLerEstado().
+static unsigned long otaBootMs = 0;
+
+// --- 1.4 gate de seguranca ---
+static bool otaPode(String& motivo) {
+  if (!wifiOk)     { motivo = "sem rede"; return false; }
+  if (emQueda)     { motivo = "em queda — o monitor esta precisando"; return false; }
+  if (filaQtd > 0) { motivo = "fila de alertas nao vazia"; return false; }
+  motivo = "";
+  return true;
+}
+
+// Chamado varias vezes com pedacos do corpo. E AQUI que a imagem e
+// gravada; a resposta so sai no handler final (otaResponder).
+static void otaReceber() {
+  HTTPUpload& up = servidor.upload();
+
+  if (up.status == UPLOAD_FILE_START) {
+    otaRecebendo = otaPronto = otaFalhou = false;
+    otaMotivo = "";
+    otaBytes = 0;
+
+    // Os headers chegam ANTES do corpo: da para barrar sem gravar um
+    // byte sequer. (O WebServer so guarda Authorization se
+    // collectHeaders() tiver sido chamado — feito em coreIniciar.)
+    if (!servidor.authenticate(OTA_USUARIO, OTA_SENHA)) {
+      otaFalhou = true;
+      otaMotivo = "credenciais recusadas";
+      Serial.println("OTA: recusado — credenciais erradas");
+      return;
+    }
+    String gate;
+    if (!otaPode(gate)) {
+      otaFalhou = true;
+      otaMotivo = gate;
+      Serial.println("OTA: recusado — " + gate);
+      return;
+    }
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+      otaFalhou = true;
+      otaMotivo = String("sem espaco: ") + Update.errorString();
+      Serial.println("OTA: " + otaMotivo);
+      return;
+    }
+    const esp_partition_t* alvo = esp_ota_get_next_update_partition(NULL);
+    otaDestino = alvo ? String(alvo->label) : String("?");
+
+    // MD5 opcional (header X-MD5). Se vier e nao bater, Update.end()
+    // recusa e o otadata NAO troca — a imagem boa continua ativa.
+    String md5 = servidor.header("X-MD5");
+    if (md5.length() == 32) {
+      Update.setMD5(md5.c_str());
+      Serial.println("OTA: MD5 esperado " + md5);
+    } else {
+      Serial.println("OTA: sem X-MD5 — validacao so na integridade do fim");
+    }
+    otaRecebendo = true;
+    Serial.println("OTA: recebendo no slot " + otaDestino + " (" +
+                   String(ESP.getFreeSketchSpace()) + " B livres)");
+  }
+  else if (up.status == UPLOAD_FILE_WRITE) {
+    if (!otaRecebendo) return;
+    if (Update.write(up.buf, up.currentSize) != up.currentSize) {
+      Update.abort();
+      otaRecebendo = false;
+      otaFalhou = true;
+      // O motivo vem do proprio Updater: "Magic byte Error" quando o
+      // arquivo nem comeca com 0xE9, "Flash Error" quando a gravacao
+      // de falha etc. Melhor do que um generico "falha ao gravar".
+      otaMotivo = "falha ao gravar: " + String(Update.errorString());
+      Serial.println("OTA: falha no slot " + otaDestino + " — " + otaMotivo);
+    }
+  }
+  else if (up.status == UPLOAD_FILE_END) {
+    if (!otaRecebendo) return;
+    otaRecebendo = false;
+    otaBytes = up.totalSize;
+    // evenIfRemaining = true: o tamanho declarado e o do SLOT INTEIRO
+    // (1.310.720 B) e a imagem e menor — sem isso o fim recusaria.
+    if (Update.end(true)) {
+      otaPronto = true;
+      Serial.println("OTA: imagem validada — " + String(otaBytes) +
+                     " bytes, MD5 " + Update.md5String());
+    } else {
+      otaFalhou = true;
+      otaMotivo = Update.errorString();
+      Serial.println("OTA: recusada no fim — " + otaMotivo);
+    }
+  }
+  else if (up.status == UPLOAD_FILE_ABORTED) {
+    if (otaRecebendo) Update.abort();
+    otaRecebendo = false;
+    otaFalhou = true;
+    otaMotivo = "cancelado pelo cliente";
+    Serial.println("OTA: envio cancelado");
+  }
+}
+
+// Resposta do POST — roda DEPOIS de todo o corpo ter passado por
+// otaReceber(). Aqui decidimos se reinicia ou nao.
+static void otaResponder() {
+  if (!servidor.authenticate(OTA_USUARIO, OTA_SENHA)) {
+    servidor.requestAuthentication();
+    return;
+  }
+
+  if (otaPronto) {
+    servidor.send(200, "application/json",
+                  "{\"ok\":true,\"bytes\":" + String(otaBytes) +
+                  ",\"md5\":\"" + Update.md5String() +
+                  "\",\"slot\":\"" + otaDestino +
+                  "\",\"reiniciando\":true}");
+
+    // Publica ANTES de reiniciar: depois do restart nao ha WiFi para
+    // entregar a mensagem. publicar() envia sincrono com rede em pie.
+    String m = "Firmware atualizado com sucesso\n";
+    m += "Tamanho: " + String(otaBytes) + " bytes\n";
+    m += "MD5: " + Update.md5String() + "\n";
+    m += "Slot: " + otaDestino + "\n\n";
+    m += "Reiniciando. A nova imagem só é confirmada depois de provar\n";
+    m += "que funciona (30 s + sensor falando). Se ela falhar antes\n";
+    m += "disso, o bootloader volta sozinho para a versão anterior.\n";
+    publicar("OTA — FIRMWARE ATUALIZADO", m, 0x00FFFF);   // ciano
+
+    delay(600);   // deixa o TCP entregar a resposta antes do corte
+    Serial.println("OTA: reiniciando no slot " + otaDestino);
+    ESP.restart();
+    return;
+  }
+
+  if (otaFalhou) {
+    servidor.send(500, "application/json",
+                  "{\"ok\":false,\"erro\":\"" + escapar(otaMotivo) + "\"}");
+    return;
+  }
+  servidor.send(400, "application/json",
+                "{\"ok\":false,\"erro\":\"nenhuma imagem recebida\"}");
+}
+
+#endif  // OTA_ATIVO
+
+// --- expostos para fora (rotaEstado + MQTT) ---
+//
+// Sem estes campos nao da para saber, de fora do aparelho, QUAL imagem
+// esta rodando, se o rollback ainda esta armado ou QUE ESTADO o
+// otadata registrou — e seria impossivel depurar uma troca de slot ou
+// um rollback sem estar com o cabo na mao.
+//
+// otaLerEstado() faz a leitura de verdade e guarda em cache: chamar
+// esp_ota_get_state_partition() a cada volta do loop seria um acesso
+// a flash sem necessidade; aqui atualiza 1x por segundo (coreLoop) e
+// na demanda do /estado.
+static esp_ota_img_states_t otaEstadoCache = ESP_OTA_IMG_UNDEFINED;
+static bool otaEstadoValido = false;
+
+static void otaLerEstado() {
+  const esp_partition_t* p = esp_ota_get_running_partition();
+  esp_ota_img_states_t st;
+  if (!p || esp_ota_get_state_partition(p, &st) != ESP_OK) {
+    otaEstadoValido = false;
+    return;
+  }
+  otaEstadoValido = true;
+  otaEstadoCache = st;
+}
+
+// Texto do estado cru, para o JSON. 0..4 sao os valores de
+// esp_ota_img_states_t (esp_flash_partitions.h).
+static String otaEstadoStr() {
+  if (!otaEstadoValido) return "SEM_REGISTRO";
+  switch (otaEstadoCache) {
+    case ESP_OTA_IMG_NEW:            return "NOVA";
+    case ESP_OTA_IMG_PENDING_VERIFY: return "PENDENTE";   // rollback ARMADO
+    case ESP_OTA_IMG_VALID:          return "VALIDA";     // confirmada
+    case ESP_OTA_IMG_INVALID:        return "INVALIDA";
+    case ESP_OTA_IMG_ABORTED:        return "ABORTADA";   // bootloader recusou
+    case ESP_OTA_IMG_UNDEFINED:      return "INDEFINIDA";
+    default:                         return "OUTRO_" + String((int)otaEstadoCache);
+  }
+}
+
+static String otaSlotAtual() {
+  const esp_partition_t* p = esp_ota_get_running_partition();
+  return p ? String(p->label) : String("?");
+}
+
+// true ENQUANTO o otadata diz que a imagem atual nao foi confirmada:
+// qualquer reset nesse estado volta para a versao anterior (1.5).
+static bool otaPendente() {
+  return otaEstadoValido && otaEstadoCache == ESP_OTA_IMG_PENDING_VERIFY;
+}
+
+// ==================================================================
 //  MQTT (base do futuro app Android)
 // ==================================================================
 static void mqttPublicarEstado() {
@@ -766,6 +1099,9 @@ static void mqttPublicarEstado() {
   payload += ",\"duracao_s\":" + String((unsigned long)(emQueda ? duracaoQuedaMs() / 1000 : 0));
   payload += ",\"ultima_queda_s\":" + String(durUltimaQueda / 1000);
   payload += ",\"fila\":" + String(filaQtd);
+  payload += ",\"slot\":\"" + otaSlotAtual() + "\"";
+  payload += ",\"ota_estado\":\"" + otaEstadoStr() + "\"";
+  payload += ",\"ota_pendente\":" + String(otaPendente() ? "true" : "false");
   payload += "}";
 
   bool ok = mqtt.publish(MQTT_TOPICO_ESTADO, payload.c_str(), true);
@@ -876,6 +1212,9 @@ static void rotaEstado() {
   json += ",\"uptime_s\":" + String(millis() / 1000);
   json += ",\"wifi_rssi\":" + String(wifiOk ? WiFi.RSSI() : 0);
   json += ",\"ip\":\"" + WiFi.localIP().toString() + "\"";
+  json += ",\"slot\":\"" + otaSlotAtual() + "\"";
+  json += ",\"ota_estado\":\"" + otaEstadoStr() + "\"";
+  json += ",\"ota_pendente\":" + String(otaPendente() ? "true" : "false");
   json += ",\"firmware\":\"" + nomeFw + "\"}";
 
   servidor.send(200, "application/json", json);
@@ -1102,8 +1441,33 @@ void coreIniciar(const char* nome) {
   horariaValido = true;
 
   // 5) servidor HTTP
+  //
+  // collectHeaders SEMPRE: e ele que faz o WebServer guardar o header
+  // Authorization — sem, authenticate() nunca acha a credencial e
+  // TODA tentativa de /update seria recusada (fail-safe, mas inutil).
+  // O X-MD5 entra junto para a validacao opcional da imagem.
+  const char* headersOta[] = {"X-MD5"};
+  servidor.collectHeaders(headersOta, 1);
   servidor.on("/", []() { rotaRaiz(); });
   servidor.on("/estado", []() { rotaEstado(); });
+  // Le o estado cru do otadata SEMPRE (mesmo com OTA desligado): o
+  // /estado e o MQTT mostram ota_estado, e "SEM_REGISTRO" so seria
+  // verdade se a leitura nao pudesse ser feita.
+  otaLerEstado();
+#if OTA_ATIVO
+  servidor.on("/update", HTTP_POST,
+              []() { otaResponder(); },   // resposta apos o corpo
+              []() { otaReceber(); });    // pedacos da imagem
+  // 1.5 — le o estado CRU do otadata no boot.
+  //
+  // NAO testamos um enum fixo aqui: a confianca no rollback tem de
+  // vir do proprio otadata. Imprime sempre, porque esta e a unica
+  // linha que diz se o 1.5 esta armado ou nao — sem ela so da para
+  // descobrir isso com o cabo na mao.
+  otaBootMs = millis();   // janela de confirmacao conta daqui
+  Serial.println("OTA: estado da imagem = " + otaEstadoStr() +
+                 " (slot " + otaSlotAtual() + ")");
+#endif
   servidor.begin();
 
   // 6) MQTT
@@ -1291,6 +1655,42 @@ void coreLoop() {
   }
 
   if (!wifiOk) return;
+
+#if OTA_ATIVO
+  // --- 1.5 confirma a imagem nova e desarma o rollback ---
+  //
+  // O estado do otadata e a FONTE DA VERDADE (otaLerEstado/otaPendente)
+  // e e relido 1x por segundo: se o bootloader marcar PENDING_VERIFY
+  // depois do boot, pegamos — nao ficamos com um flag preso no false.
+  //
+  // NAO confirmamos no boot de proposito: precisa de TEMPO DE VIDA e
+  // do SENSOR FALANDO. Confirmar cedo demais assinaria um firmware que
+  // panicou ou que nao le a UART — exatamente os casos em que o
+  // rollback existe.
+  static unsigned long otaEstadoMs = 0;
+  if (millis() - otaEstadoMs >= 1000) {
+    otaEstadoMs = millis();
+    otaLerEstado();
+  }
+  static bool otaJaTentou = false;
+  if (!otaJaTentou && otaPendente() && ultimaLeituraSensor > 0 &&
+      millis() - otaBootMs >= OTA_CONFIRMA_MS) {
+    otaJaTentou = true;   // tenta UMA vez: repetir nao muda o estado
+    if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+      otaLerEstado();
+      Serial.println("OTA: imagem CONFIRMADA valida (slot " +
+                     otaSlotAtual() + ", estado " + otaEstadoStr() + ")");
+      String m = "Firmware confirmado — rollback cancelado\n";
+      m += "Slot: " + otaSlotAtual() + "\n";
+      m += "Foi o primeiro boot desta imagem; ela passou na prova\n";
+      m += "(30 s de vida + sensor falando).\n";
+      publicar("OTA — FIRMWARE CONFIRMADO", m, 0x00FF00);   // verde
+    } else {
+      Serial.println("OTA: confirmacao REJEITADA (estado " +
+                     otaEstadoStr() + ") — rollback segue ARMADO");
+    }
+  }
+#endif
 
   servidor.handleClient();
   mqttLoop();

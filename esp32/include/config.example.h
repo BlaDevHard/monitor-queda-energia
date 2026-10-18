@@ -98,8 +98,9 @@ const char* const MQTT_TOPICO_STATUS = "monitor/energia/status";
 // ============================================================
 // Relatorio horario de saude do fornecimento
 // ============================================================
-// A cada HORARIA_MS de ULTIMO ENVIO, uma mensagem "SERVIÇO
-// PERMANECE ATIVO" sai no Discord. Contado do envio, nao do
+// A cada HORARIA_MS de ULTIMO ENVIO, uma mensagem intitulada "ULTIMO
+// PERIODO" sai no Discord, com tensao (e VACmin/max/med da janela),
+// quedas, minutos sem energia e uptime. Contado do envio, nao do
 // relogio: no blecaute nao ha WiFi; quando a rede volta o
 // relatorio sai sozinho (apos a fila de alertas) — vale como
 // confirmacao de retorno. Suprimido durante queda em andamento.
@@ -162,3 +163,26 @@ const char* const MQTT_TOPICO_STATUS = "monitor/energia/status";
 // bordas do ADC (0/4095) antes de alertar "ADC SATURADO".
 // (3 janelas ~2 s — mesmo tempo do debounce)
 #define JANELAS_ALERTA 3
+
+// ============================================================
+// OTA — atualizacao do firmware pela rede
+// ============================================================
+// POST multipart no endpoint /update, com Basic Auth. So roda com
+// rua ligada (sem queda), WiFi em pie e fila de alertas vazia.
+//
+// SEGURANCA: se voce apagar OTA_USUARIO/OTA_SENHA daqui, o endpoint
+// /update NEM E REGISTRADO — e se marcar OTA_ATIVO=1 sem credencial,
+// a compilacao falha com #error em vez de criar uma senha fraca.
+// O config.h real (nao versionado) guarda a senha de verdade.
+//
+//   curl -u admin:SENHA -F "firmware=@firmware.bin" http://<ip>/update
+//   (opcional) -H "X-MD5: <md5sum do binario>"
+//
+// Rollback: o bootloader tem CONFIG_APP_ROLLBACK_ENABLE=y. A imagem
+// nova nasce em ESP_OTA_IMG_PENDING_VERIFY e so e confirmada quando
+// completa 30 s de vida E o sensor falar (OTA_CONFIRMA_MS). Se ela
+// panicar, travar ou reiniciar antes disso, o bootloader volta para a
+// versao anterior sozinho. Detalhes: monitor_core.cpp, secao OTA.
+#define OTA_ATIVO 1
+#define OTA_USUARIO "admin"
+#define OTA_SENHA "SUA_SENHA_LONGA_E_ALEATORIA_AQUI"
