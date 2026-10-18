@@ -417,8 +417,10 @@ static String identificacao() {
 //    com esse tipo pertence ao consumidor MQTT; aqui vai a leitura
 //    humana do mesmo conteudo.
 static void enviarRelatorioHorario() {
-  String msg = "Situação: SERVIÇO PERMANECE ATIVO\n";
-  msg += identificacao();
+  // O titulo do embed e "NA ULTIMA HORA" — e o que o relatorio e.
+  // A linha "Situacao: SERVICO PERMANECE ATIVO" foi removida: repetia
+  // o titulo palavra por palavra.
+  String msg = identificacao();
   msg += notaHora(relogioAgora()) + agoraStr() + "\n";
 
   // --- Telemetria da janela ---
@@ -445,9 +447,7 @@ static void enviarRelatorioHorario() {
   msg += "  ·  Sem energia: " + String(segSemEnergiaHora / 60) + " min\n";
   msg += "Uptime: " + relogioFormatarDuracao(millis() / 1000) + "\n";
 
-  // O rodape "Monitor de Quedas - Antonina-PR" ja sai no footer do
-  // embed — aqui ele aparecia DUAS vezes.
-  publicar("SERVIÇO PERMANECE ATIVO", msg, 0x00FF00);   // verde
+  publicar("NA ULTIMA HORA", msg, 0x00FF00);   // verde
 
   // Fecha a janela: o proximo relatorio conta do zero.
   quedasHora = 0;
@@ -553,10 +553,12 @@ static bool enviarDiscord(const String& titulo, const String& descricao, int cor
   http.begin(clienteSeguro, DISCORD_URL);
   http.addHeader("Content-Type", "application/json");
 
+  // SEM footer no embed: "Monitor de Quedas - Antonina-PR" agora e a
+  // ultima linha do CORPO (ver assinar()), com o link da documentacao
+  // logo abaixo. Com o footer, a assinatura saia DUAS vezes.
   String payload = "{\"embeds\":[{\"title\":\"" + escapar(titulo) +
                    "\",\"description\":\"" + escapar(descricao) +
-                   "\",\"color\":" + String(cor) +
-                   ",\"footer\":{\"text\":\"Monitor de Quedas - Antonina-PR\"}}]}";
+                   "\",\"color\":" + String(cor) + "}]}";
 
   int codigo = http.POST(payload);
   Serial.println("Discord: " + String(codigo));   // 204 = ok
@@ -599,6 +601,23 @@ static bool tentarEnviar(Aviso& a) {
   return enviarDiscord(a.titulo, a.corpo, a.cor);
 }
 
+// --- Assinatura de TODA mensagem ---
+// Feita AQUI (e nao em cada chamada) para ser garantida por
+// construcao: qualquer mensagem nova ja sai assinada sem lembrar de
+// chamar nada.
+//
+// E a ultima linha do CORPO, nao o footer do embed — com o footer a
+// assinatura aparecia duas vezes (corpo + rodape cinza do embed).
+// O link da documentacao vem logo abaixo, como pedido.
+static String assinar(String corpo) {
+  while (corpo.endsWith("\n")) corpo.remove(corpo.length() - 1);
+  if (corpo.length()) corpo += "\n";
+  corpo += "Monitor de Quedas - Antonina-PR\n";
+  corpo += "Documentação do projeto em:\n";
+  corpo += DOCS_URL;
+  return corpo;
+}
+
 // Faz o envio; se a rede caiu, guarda na fila para depois.
 static void publicar(const String& titulo, const String& corpo, int cor) {
   // MODO MUDO: simula em bancada sem notificar ninguem. A mensagem
@@ -608,14 +627,14 @@ static void publicar(const String& titulo, const String& corpo, int cor) {
     Serial.println();
     Serial.println("=== [MODO MUDO] mensagem NAO enviada ===");
     Serial.println("Titulo: " + titulo);
-    Serial.println(corpo);
+    Serial.println(assinar(corpo));
     Serial.println("=== fim ===");
     return;
   }
 
   Aviso a;
   a.titulo = titulo;
-  a.corpo = corpo;
+  a.corpo = assinar(corpo);   // assinatura em TODA postagem
   a.cor = cor;
   a.pbEnviado = false;
 
