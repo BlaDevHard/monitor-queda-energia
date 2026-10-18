@@ -127,20 +127,40 @@ vault ASCENE).
 | **1. Versão** | 3 commits assinados: `eeeea5b` (fix) · `d3d1960` (feat) · `dcbd36f` (docs) |
 | **2. Bancada** | `MODO_MUDO=1` + `HORARIA_MS=60000` → **checklist 4/4** |
 | **3. Gravação** | Produção (`MODO_MUDO=0`, 60 min) — autorizada pelo usuário; Discord 204 ✅ |
-| **4. Validação** | Em curso — 7–14 dias (ver abaixo) |
-| **5. Publicação** | push assinado pendente; tag `v3.3` **só após** validar |
+| **4. Validação** | Em curso — 7–14 dias (ver abaixo). **Reiniciada 14:32** (ver §6b) |
+| **5. Publicação** | ✅ push assinado `3128237..9b870d2` (5 commits). Tag `v3.3` **só após** validar |
 
 **Prova do fix em bancada:** queda de WiFi → escada 10/20/40 s → reconexão
 (`.4`→`.5`) → `GET /estado` = **HTTP 200** com `uptime_s: 902` (mesmo boot,
 **sem reboot**). Bônus: queda real de ~4 s durante o religamento foi
 empacotada em relatório, sem alerta falso.
 
-**Validação de campo (a acompanhar):**
+### 6b. Segunda gravação: `vrms` + `v_nom` (18/10, 14:32)
+
+Mesmo dia, ~1 h depois da primeira: **v3.3 + calibração do ZMPT.**
+- `vrms = K_VRMS × amp` no `/estado` **e** no MQTT (+ `v_nom`).
+  `vrmsAtual()` devolve **0** quando `amp < 10` — sem rua o `amp` é só
+  ruído do ADC (~7); em vez de inventar "2,1 V", devolve 0.
+- **`K_VRMS = 0.2976`** (ponto 1). A regressão de 5 pontos deu **0,2987**;
+  delta 0,37% — **mantido** por decisão (menor que a incerteza do
+  multímetro). Corrigir na próxima gravação. Ver [`calibracao-zmpt.md`](calibracao-zmpt.md).
+- **Validação de campo reiniciou às 14:32** (contagem 7–14 dias do zero).
+  Aceito pelo usuário: a mudança é **aditiva** — não toca detecção, fila,
+  horária nem o fix do HTTP, que continua testado.
+- **Não foi por OTA:** não existe código OTA ainda (subtasks 1.2–1.6
+  pendentes). Gravado por USB (`pio run -t upload`). O fix 1.1 apenas
+  *destrava* o caminho do OTA futuro.
+
+**Validação de campo (a acompanhar — reiniciada 18/10, 14:32):**
 - [ ] ~24 horários/dia no Discord, sem duplicata
 - [ ] Primeira queda **real** → QUEDA → fila → horária de retorno
 - [ ] Blecaute longo (>1 h) → horária não se perde
 - [ ] HTTP pós-blecaute responde sem reboot (confirmar em campo)
 - [ ] `uptime` só cresce (sem reboot misterioso)
+- [ ] `vrms` coerente com o multímetro (±5%) em horários distintos
+
+📌 **19/10 (segunda): medições de manhã, tarde e noite** para abrir a faixa
+da calibração (span hoje só 4,7%) — ver [`calibracao-zmpt.md`](calibracao-zmpt.md) §7.
 
 ### Achados a corrigir (não bloqueiam)
 - **`amp` duplicado no JSON** de `/estado` (`"amp":429` aparece 2×) — bug

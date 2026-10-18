@@ -74,6 +74,30 @@ ligado / ~7 desligado, limiar 65) e **frequência** (já implementada,
 | **e) Esforço** | **MÉDIO** — física/medição + código moderado (VRMS + swell). Vira ALTO se entrar THD. |
 | **f) Sequência** | 2.1 Levantar bancada: multímetro true‑RMS + **variac** (autotransformador) p/ varrer 90–150 V. <br>2.2 Em cada ponto PRODIST: anotar `V_ref` + `amp` (N=100, com σ) → gravar `data/calibracao_YYYY-MM-DD.csv`. <br>2.3 Regressão `vrms = K×amp` (intercepto 0) → `K` com incerteza; gráfico + erro residual. <br>2.4 Definir `K` e `V_NOM` em `config.h` (com nota da data da calibração). <br>2.5 Adicionar `vrms = K * amp` ao JSON de estado/UART. <br>2.6 Limiares de **swell** (`>1.1×V_NOM`) e **under‑voltage** (`<0.9×V_NOM`, faixa PRODIST). <br>2.7 Validar: conferir `vrms` contra o multímetro em **2–3 pontos fora da calibração** (erro ≤ ±5%). |
 
+> ### 📌 Status da Prioridade 2 — 18/10/2026
+> **Feito no modo "sem variac" (fallback ampliado para 5 pontos):**
+>
+> | Subtask | Estado |
+> |---|---|
+> | 2.1 bancada | ⚠️ **parcial** — multímetro ✅ (ANENG M118A true‑RMS), **variac ❌**. Alimentação por power bank (igual campo) ✅ |
+> | 2.2 pontos | ✅ **5 pontos** em `data/calibracao_2026-10-18.csv` (N=37–58, com σ, sem saturação) — obtidos por **variação natural da rede** (123,9→130,0 V), não por variac |
+> | 2.3 regressão | ✅ `K = 0,2987 ± 0,0018 (±0,60%)`, intercepto 0; maior erro residual **1,01%** (passa ≤±5%) |
+> | 2.4 `K`/`V_NOM` no `config.h` | ✅ `K_VRMS 0.2976` (ponto 1, mantido — delta 0,37% p/ 0,2987, menor que incerteza) + `V_NOM 127` |
+> | 2.5 `vrms` no JSON | ✅ `vrms` + `v_nom` no `/estado` **e** no MQTT. `vrmsAtual()` devolve **0** se `amp<10` (sem rua = ruído, não inventa volts) |
+> | 2.6 swell/under‑voltage | ⬜ **não feito** (fica para depois, junto do `K` corrigido) |
+> | 2.7 validação | ⚠️ **parcial** — erros ≤1,01% **dentro** da faixa testada; mas **span só 4,7%**, não cobre PRODIST |
+>
+> **Veredito:** serve para o **monitor** (volts, swell/under‑voltage);
+> **NÃO** vale para apuração DRP/DRC do MedTens (exige 9 pontos PRODIST).
+> O gargalo é a **faixa**, não a quantidade de pontos.
+> **Registro completo:** [`calibracao-zmpt.md`](calibracao-zmpt.md).
+>
+> 📌 **Próximo passo anotado: SEGUNDA 19/10/2026 — medições de manhã,
+> tarde e noite** (3 janelas p/ abrir o span sem variac) + 1 leitura com
+> carga pesada ligada (chuveiro/forno) se possível. Depois: corrigir `K`
+> para 0,2987 **na próxima gravação** (junto do OTA), nunca regravando
+> só por isso.
+
 ---
 
 ## Prioridade 3 — Mensagem horária (saúde do fornecimento)

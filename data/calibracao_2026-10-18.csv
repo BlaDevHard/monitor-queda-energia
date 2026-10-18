@@ -1,0 +1,6 @@
+timestamp,v_ref,amp_media,sigma_amp,amp_min,amp_max,saturado,n,k_i,nota,multimetro,incerteza_mm
+2026-10-18T14:18:31,123.9,416.3,2.453,413,421,0,58,0.297651,fallback 1 ponto (sem variac); terminais entrada do ZMPT,ANENG M118A,+-0.5%+3d
+2026-10-18T14:41:24,129.44,428.97,2.342,424,434,0,37,0.301753,"ponto 2 natural (variu ~5V em 23min, sem variac); terminais ZMPT",ANENG M118A,+-0.5%+3d
+2026-10-18T14:43:26,129.7,433.39,2.709,430,440,0,51,0.299269,"ponto 3 natural (variac ~6V, sem variac); terminais ZMPT",ANENG M118A,+-0.5%+3d
+2026-10-18T14:51:29,129.96,435.51,2.664,430,439,0,45,0.298417,ponto 4 natural; 1 leitura (1360.2) descartada por erro de digitacao,ANENG M118A,+-0.5%+3d
+2026-10-18T14:54:14,129.35,436.42,2.208,432,441,0,57,0.296389,ponto 5; pareamento FRAGIL (leituras chegaram antes da janela de amp),ANENG M118A,+-0.5%+3d
