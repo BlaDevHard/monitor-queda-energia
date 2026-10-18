@@ -70,6 +70,16 @@ const char* const MQTT_TOPICO_STATUS = "monitor/energia/status";
 #define MODO_MUDO 0
 
 // ============================================================
+// Relatorio horario de saude do fornecimento
+// ============================================================
+// A cada HORARIA_MS de ULTIMO ENVIO, uma mensagem "SERVIÇO
+// PERMANECE ATIVO" sai no Discord. Contado do envio, nao do
+// relogio: no blecaute nao ha WiFi; quando a rede volta o
+// relatorio sai sozinho (apos a fila de alertas) — vale como
+// confirmacao de retorno. Suprimido durante queda em andamento.
+#define HORARIA_MS 3600000   // 60 min em ms
+
+// ============================================================
 // v3.1 — tempo, fila de mensagens e checkpoint
 // ============================================================
 // O roteador cai junto com a rua: no instante da QUEDA nao ha

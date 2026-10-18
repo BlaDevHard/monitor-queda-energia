@@ -32,6 +32,9 @@
 #ifndef SENSOR_SILENCIO_MS
 #define SENSOR_SILENCIO_MS 45000UL   // 45 s sem linha do Arduino
 #endif
+#ifndef HORARIA_MS
+#define HORARIA_MS 3600000UL   // relatorio horario: 60 min
+#endif
 #ifndef MODO_MUDO
 #define MODO_MUDO 0   // 1 = bancada: nada sai p/ Discord, Pushbullet ou MQTT
 #endif
@@ -304,6 +307,15 @@ static void enviarRelatorioPulsos() {
 static unsigned long ultimaDocs = 0;
 static bool ultimaDocsValido = false;
 
+// Relatorio horario de saude do fornecimento (prioridade 3 do
+// plano). Timer contado do ULTIMO ENVIO, nao do relogio de parede:
+// sem rua nao ha roteador, logo nao ha WiFi — um horario que vence
+// no meio de um blecaute nao e perdido: a mensagem sai quando a
+// rede voltar (apos a fila de alertas), e ai vale como confirmacao
+// de retorno.
+static unsigned long ultimaHoraria = 0;
+static bool horariaValido = false;
+
 void sensorPulsou() {
   ultimaLeituraSensor = millis();
   if (sensorSilencioso) {
@@ -356,6 +368,18 @@ static String identificacao() {
 // pior momento para procurar a documentacao e quando a rua cai.
 static String documentacao() {
   return String("Documentação do projeto em:\n") + DOCS_URL + "\n";
+}
+
+// Relatorio horario de saude (prioridade 3): prova de vida do
+// monitor + confirmacao de que o fornecimento permanece ativo.
+// So sai com rua ligada, WiFi em pie e fila vazia — nunca compete
+// com alerta de queda.
+static void enviarRelatorioHorario() {
+  String msg = "Situação: SERVIÇO PERMANECE ATIVO\n";
+  msg += identificacao();
+  msg += notaHora(relogioAgora()) + agoraStr() + "\n";
+  msg += "Monitor de Quedas - Antonina-PR\n";
+  publicar("SERVIÇO PERMANECE ATIVO", msg, 0x00FF00);   // verde
 }
 
 static String escapar(String s) {
@@ -919,6 +943,11 @@ void coreIniciar(const char* nome) {
   ultimaDocs = millis();
   ultimaDocsValido = true;
 
+  // Primeiro relatorio HORARIA_MS depois do boot; a partir dai,
+  // HORARIA_MS apos cada envio (ver coreLoop).
+  ultimaHoraria = millis();
+  horariaValido = true;
+
   // 5) servidor HTTP
   servidor.on("/", []() { rotaRaiz(); });
   servidor.on("/estado", []() { rotaEstado(); });
@@ -996,6 +1025,19 @@ void coreLoop() {
       millis() - ultimaEntregaFila > 1000) {
     ultimaEntregaFila = millis();
     entregarDaFila();
+  }
+
+  // --- Relatorio horario de saude (prioridade 3) ---
+  // Contado do ultimo ENVIO, nao do relógio de parede: no blecaute
+  // nao ha WiFi entao nada sai — quando a rede volta, o horario ja
+  // venceu e a mensagem sai sozinha, apos a fila de alertas (que
+  // tem prioridade: so publica com fila vazia). Enquanto ha queda
+  // em andamento, suprime: o alerta de QUEDA ja cobre o estado.
+  if (horariaValido && millis() - ultimaHoraria > HORARIA_MS) {
+    if (!emQueda && wifiOk && filaQtd == 0 && estadoInicialEnviado) {
+      ultimaHoraria = millis();
+      enviarRelatorioHorario();
+    }
   }
 
   // --- Checkpoint periodico (mantem o epoch corrente na flash) ---
