@@ -35,6 +35,12 @@
 #ifndef HORARIA_MS
 #define HORARIA_MS 3600000UL   // relatorio horario: 60 min
 #endif
+#ifndef K_VRMS
+#define K_VRMS 0.2976F   // calibracao 18/10/2026 (ponto 1; ver nota em config.example.h)
+#endif
+#ifndef V_NOM
+#define V_NOM 127        // tensao nominal da rede (PRODIST módulo 8)
+#endif
 #ifndef MODO_MUDO
 #define MODO_MUDO 0   // 1 = bancada: nada sai p/ Discord, Pushbullet ou MQTT
 #endif
@@ -415,6 +421,19 @@ static unsigned long duracaoQuedaMs() {
   return millis() - tsQueda;
 }
 
+// Tensao RMS da rede em volts, a partir da amplitude pico-a-pico.
+// K_VRMS absorve AVcc, razao do ZMPT e a conversao p-p -> RMS (plan
+// 2.4). Calibracao 18/10/2026: 5 pontos, K=0.2987 +-0.60%, span 4,7%
+// — serve p/ monitor (volts, swell/under-voltage), NAO p/ apuracao
+// DRP/DRC (exige 9 pontos PRODIST + variac). Ver docs/calibracao-zmpt.md.
+//
+// Sem sinal (amp ~ruido na queda) o numero nao significa tensao:
+// devolve 0 em vez de um "volts" inventado em cima do ruido.
+static float vrmsAtual() {
+  if (ampAtual < 10) return 0.0F;   // sem rua: so ruido no ADC
+  return K_VRMS * ampAtual;
+}
+
 // ==================================================================
 //  WIFI
 // ==================================================================
@@ -634,6 +653,8 @@ static void mqttPublicarEstado() {
 
   String payload = "{\"energia\":\"" + estadoAtual + "\"";
   payload += ",\"amp\":" + String(ampAtual);
+  payload += ",\"vrms\":" + String(vrmsAtual(), 1);
+  payload += ",\"v_nom\":" + String(V_NOM);
   payload += ",\"em_queda\":" + String(emQueda ? "true" : "false");
   payload += ",\"sinal_saturado\":" + String(sinalSaturado ? "true" : "false");
   payload += ",\"ts\":" + String((unsigned long)relogioAgora());
@@ -735,6 +756,8 @@ static void rotaRaiz() {
 static void rotaEstado() {
   String json = "{\"energia\":\"" + estadoAtual + "\"";
   json += ",\"amp\":" + String(ampAtual);
+  json += ",\"vrms\":" + String(vrmsAtual(), 1);
+  json += ",\"v_nom\":" + String(V_NOM);
   json += ",\"em_queda\":" + String(emQueda ? "true" : "false");
   json += ",\"amp\":" + String(ampAtual);
   json += ",\"sinal_saturado\":" + String(sinalSaturado ? "true" : "false");

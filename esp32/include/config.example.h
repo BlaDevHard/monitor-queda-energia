@@ -70,6 +70,36 @@ const char* const MQTT_TOPICO_STATUS = "monitor/energia/status";
 #define MODO_MUDO 0
 
 // ============================================================
+// Calibracao do ZMPT — conversao amp -> VRMS
+// ============================================================
+// vrms = K_VRMS * amp   (amp = amplitude pico-a-pico em contagens)
+//
+// K_VRMS = V_ref / amp_medido, medido com multímetro true-RMS nos
+// terminais de ENTRADA do ZMPT.
+//
+// STATUS 18/10/2026: **CALIBRACAO PARCIAL MELHORADA — 5 pontos,
+// faixa estreita, sem variac.** Regressao (intercepto 0):
+//     K = 0.2987 +- 0.0018 (0,60%)   maior erro residual 1,01%
+// Pontos: 123.9-130.0 V (span 4,7%), obtidos por variacao natural
+// da rede, nao por variac. Nenhum ponto saturado.
+// Detalhe, dados e plano: docs/calibracao-zmpt.md
+//
+// POR QUE 0.2976 AQUI e nao 0.2987? O firmware foi gravado com o
+// valor do ponto 1; o delta para 0.2987 e de 0,37% — MENOR que a
+// incerteza do proprio multimetro (~0,5-0,7%). Decisao 18/10:
+// manter e corrigir na PROXIMA gravacao ( junto do OTA), porque
+// regravar agora so por isso reiniciaria a validacao de campo da
+// v3.3 sem ganho mensuravel.
+//
+// ATENCAO: valida p/ o MONITOR (volts, swell/under-voltage), NAO p/
+// apuracao DRP/DRC do MedTens — isso exige os 9 pontos PRODIST
+// (90-150 V) com variac.
+//
+// V_NOM: nominal da rede monitorada (PRODIST módulo 8: 127 V).
+#define K_VRMS 0.2976   // volts RMS por conta pico-a-pico
+#define V_NOM  127      // tensao nominal da rede (V)
+
+// ============================================================
 // Relatorio horario de saude do fornecimento
 // ============================================================
 // A cada HORARIA_MS de ULTIMO ENVIO, uma mensagem "SERVIÇO
