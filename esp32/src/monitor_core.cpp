@@ -977,7 +977,13 @@ void coreLoop() {
       }
     }
   } else {
-    if (!wifiOk) Serial.println("WiFi: voltou");
+    if (!wifiOk) {
+      Serial.println("WiFi: voltou");
+      // Reabre o socket de escuta do WebServer: WIFI_OFF no blecaute
+      // destruiu o socket aberto no boot (subtask 1.1). Sem isto o
+      // handleClient() atende em socket morto -> connection refused.
+      servidor.begin();
+    }
     wifiOk = true;
   }
 
