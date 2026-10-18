@@ -26,7 +26,35 @@
    `!wifiOk → wifiOk` (monitor_core.cpp, bloco de reconexão ~L979).
    Uma linha — destrava HTTP **e** OTA por HTTP.
 
-3. **O Arduino não pode ser programado pelo ESP32 hoje — falta fio.**
+3. **⚠️ O Arduino‑ESP32 já confirma a imagem OTA sozinho — e isso
+   derrubava o rollback.** `cores/esp32/esp32-hal-misc.c`:
+
+   ```c
+   bool verifyRollbackLater() __attribute__((weak));
+   bool verifyRollbackLater() { return false; }   // padrão: confirma cedo
+
+   void initArduino() {
+     if(!verifyRollbackLater()){ ... if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+         if (verifyOta())  esp_ota_mark_app_valid_cancel_rollback();
+         else              esp_ota_mark_app_invalid_rollback_and_reboot();
+     }}}
+   ```
+
+   Ou seja: `initArduino()` roda **antes do `setup()`** e chama
+   `esp_ota_mark_app_valid_cancel_rollback()`. O `PENDING_VERIFY`
+   desaparece antes de qualquer linha do projeto executar → o rollback
+   **nunca** fica armado. Medido no campo: `ota_estado` era `VALIDA` a
+   partir do uptime `7 s`.
+
+   Os dois símbolos são `__attribute__((weak))`, então a correção é
+   **sobrescrever ambos** no `monitor_core.cpp`:
+   `verifyRollbackLater()` → `true` (deixa o rollback armado até o
+   projeto confirmar) e `verifyOta()` → `true` (não deixa o núcleo
+   julgar — em `initArduino()` o UART2 ainda nem foi aberto, ele não tem
+   como saber se o **sensor** funciona). Depois da sobrescrita a
+   sequência observada foi `NOVA → PENDENTE (uptime 7 a 35) → VALIDA`.
+
+4. **O Arduino não pode ser programado pelo ESP32 hoje — falta fio.**
    A fiação é só `Arduino TX → ESP32 GPIO16 (RX2)`. Não existe
    `ESP32 TX → Arduino RX`, nem circuito de auto‑reset. OTA do Arduino
    exige hardware novo + protocolo STK500. Confirma o tratamento
@@ -42,7 +70,7 @@
 | **b) Dependências** | (i) **Corrigir o re‑listen do HTTP** (1.1); (ii) WiFi estável em algum momento (só faz OTA com rua ligada); (iii) definir transporte: **ArduinoOTA** (biblioteca padrão do framework) vs **WebServer+Update** (também padrão). |
 | **c) Riscos / mitigação** | *Device vira tijolo se a gravação falhar* → `Update` com verificação de MD5 + rollback do bootloader; só reiniciar com `Update.end()` OK. *WiFi cai no meio do OTA* → abortar e manter slot antigo; nunca fazer OTA durante blecaute (gate: só com `emQueda==false && wifiOk`). *Segurança* → OTA só em rede local, com senha (`ArduinoOTA.setPassword`) e **nunca** exposto à internet. |
 | **d) Esforço** | **ALTO** — mexe na flash de um device implantado e de difícil acesso; exige transporte + `Update` + salvaguardas + teste. A partição pronta derruba ~40% do risco original. |
-| **e) Sequência** | 1.1 Corrigir `servidor.begin()` na reconexão (destrava HTTP). <br>1.2 Escolher transporte: **ArduinoOTA** (descobre por mDNS → resolve também o IP DHCP) **ou** `/update` via `Update`. <br>1.3 Integrar `Update.begin(WRITE_FLASH)/write()/end()` + MD5. <br>1.4 Gate de segurança: só com rua ligada e `emQueda==false`. <br>1.5 Rollback + log no Discord do slot ativo. <br>1.6 Teste em bancada antes de campo. |
+| **e) Sequência** | ✅ **1.1** Corrigir `servidor.begin()` na reconexão (destrava HTTP). <br>✅ **1.2** Transporte: **`WebServer` + `Update`** (`POST /update`), não ArduinoOTA — reusa o socket do `/estado`, zero dependência nova, e mDNS resolveria o IP DHCP (o `/estado` já resolve). <br>✅ **1.3** `Update.begin()/write()/end()` + MD5 opcional no header `X-MD5`. <br>✅ **1.4** Gate: recusa com `emQueda`, sem WiFi ou fila ≠ 0. <br>✅ **1.5** Rollback — **funciona**, ver Descoberta 3: exige sobrescrever `verifyRollbackLater()`. Slot (`ota_0`/`ota_1`) e estado (`ota_estado`) vão no `/estado` e no MQTT, e a confirmação vai para o Discord. <br>✅ **1.6** Bancada, todas as rotas: imagem válida → `200` + reboot + `NOVA→PENDENTE→VALIDA`; magic byte torto → `500 Magic byte Error`; MD5 errado → `500 MD5 Check Failed`; credencial errada → `401`; fim estragado → `500 Could Not Activate The Firmware`. **Nos cinco, a imagem boa continuou ativa e o aparelho não reiniciou** (exceto no caso válido, que reinicia por desenho). Commit `49d7e96`. |
 
 > **Restrição de biblioteca atendida:** `ArduinoOTA` e `Update.h` são do
 > framework arduino‑esp32 — nada de lib de terceiros.
@@ -169,10 +197,16 @@ ligado / ~7 desligado, limiar 65) e **frequência** (já implementada,
 
 ```
 FASE 1 — OTA + calibração  (prioridades 1 + 2)
-  1.1 corrigir re-listen do HTTP (destrava HTTP + OTA-HTTP)
-  1.2..1.6 OTA via ArduinoOTA/Update, com gate de segurança e rollback
-  2.1..2.7 calibração VRMS — 9 pontos PRODIST + regressão (variac); swell/under-voltage; THD fora do escopo
-  → Entrega: atualização remota + tensão em volts confiável
+  ✅ 1.1 corrigir re-listen do HTTP (destrava HTTP + OTA-HTTP)
+  ✅ 1.2..1.6 OTA via WebServer+Update, com gate de segurança e
+     rollback — commit 49d7e96; bancada OK nos 5 caminhos de recusa
+     (ver Descoberta 3: exigiu sobrescrever verifyRollbackLater)
+  [ ] pendência da fase: RESERVA DHCP (pre-req. do OTA de campo, que
+     depende de achar o aparelho; o IP já escorregou .5 -> .8 -> .5)
+  2.1..2.7 calibração VRMS — 5 pontos feitos (K=0.2987); 9 pontos
+     PRODIST + swell/under-voltage adiados p/ quando houver variac
+  → Entrega: atualização remota ✅ + tensão em volts confiável
+     (parcial: sem variac nao ha faixa 90–150 V)
 
 FASE 2 — mensagens periódicas e pós-evento  (prioridades 3 + 4)
   3.1..3.3 relatório horário (payload mínimo definido, suprimido em queda)
