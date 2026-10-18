@@ -417,7 +417,7 @@ static String identificacao() {
 //    com esse tipo pertence ao consumidor MQTT; aqui vai a leitura
 //    humana do mesmo conteudo.
 static void enviarRelatorioHorario() {
-  // O titulo do embed e "NA ULTIMA HORA" — e o que o relatorio e.
+  // O titulo do embed e "ULTIMO PERIODO" — e o que o relatorio e.
   // A linha "Situacao: SERVICO PERMANECE ATIVO" foi removida: repetia
   // o titulo palavra por palavra.
   String msg = identificacao();
@@ -447,7 +447,7 @@ static void enviarRelatorioHorario() {
   msg += "  ·  Sem energia: " + String(segSemEnergiaHora / 60) + " min\n";
   msg += "Uptime: " + relogioFormatarDuracao(millis() / 1000) + "\n";
 
-  publicar("NA ULTIMA HORA", msg, 0x00FF00);   // verde
+  publicar("ULTIMO PERIODO", msg, 0x00FF00);   // verde
 
   // Fecha a janela: o proximo relatorio conta do zero.
   quedasHora = 0;
