@@ -101,12 +101,12 @@ estar em casa por algumas horas**.
 
 | Passo | Conteúdo | Status |
 |---|---|---|
-| **1.1** | Re-chamar `servidor.begin()` na reconexão WiFi | ✅ **implementado** (18/10) |
+| **1.1** | Re-chamar `servidor.begin()` na reconexão WiFi | ✅ **validado em bancada** (18/10) |
 | **1.2** | Escolher transporte: `ArduinoOTA` × `WebServer`+`Update` | pendente |
 | **1.3** | Integrar `Update.begin(WRITE_FLASH)/write()/end()` + MD5 | pendente |
 | **1.4** | Gate: só com rua ligada (`emQueda==false && wifiOk`) | pendente |
 | **1.5** | Rollback + log do slot ativo no Discord | pendente |
-| **1.6** | Teste em **bancada** antes de campo | pendente |
+| **1.6** | Teste em **bancada** antes de campo | ✅ 4/4 (boot · horária · queda · HTTP pós-blecaute) |
 
 > **Extra neste update (prioridade 3 do plano):** relatório horário de
 > saúde — `SERVIÇO PERMANECE ATIVO` a cada `HORARIA_MS` (60 min) do
@@ -114,6 +114,39 @@ estar em casa por algumas horas**.
 > quando a rede volta, o relatório sai sozinho após a fila de alertas e
 > vale como **confirmação de retorno**). Suprimido durante queda.
 > Ver [[arquitetura]] (box "Hora aproximada") sobre o `⚠️` de hora sem NTP.
+
+---
+
+## 6. Registro do upgrade v3.2 → v3.3 (18/10/2026)
+
+Aplicado ao vivo com o fluxo de [[01-fluxo-firmware]] (nota didática no
+vault ASCENE).
+
+| Estágio | Resultado |
+|---------|-----------|
+| **1. Versão** | 3 commits assinados: `eeeea5b` (fix) · `d3d1960` (feat) · `dcbd36f` (docs) |
+| **2. Bancada** | `MODO_MUDO=1` + `HORARIA_MS=60000` → **checklist 4/4** |
+| **3. Gravação** | Produção (`MODO_MUDO=0`, 60 min) — autorizada pelo usuário; Discord 204 ✅ |
+| **4. Validação** | Em curso — 7–14 dias (ver abaixo) |
+| **5. Publicação** | push assinado pendente; tag `v3.3` **só após** validar |
+
+**Prova do fix em bancada:** queda de WiFi → escada 10/20/40 s → reconexão
+(`.4`→`.5`) → `GET /estado` = **HTTP 200** com `uptime_s: 902` (mesmo boot,
+**sem reboot**). Bônus: queda real de ~4 s durante o religamento foi
+empacotada em relatório, sem alerta falso.
+
+**Validação de campo (a acompanhar):**
+- [ ] ~24 horários/dia no Discord, sem duplicata
+- [ ] Primeira queda **real** → QUEDA → fila → horária de retorno
+- [ ] Blecaute longo (>1 h) → horária não se perde
+- [ ] HTTP pós-blecaute responde sem reboot (confirmar em campo)
+- [ ] `uptime` só cresce (sem reboot misterioso)
+
+### Achados a corrigir (não bloqueiam)
+- **`amp` duplicado no JSON** de `/estado` (`"amp":429` aparece 2×) — bug
+  cosmético, clientes leem o primeiro. Corrigir na próxima janela.
+- **IP muda por DHCP** (`.4`→`.5`) — confirma a **reserva DHCP** como
+  prerequisito do OTA; reforça `ArduinoOTA` (mDNS) na decisão 1.2.
 
 **Aceite (do plano):** `pio run` gera `firmware.bin`; uma requisição grava em
 `app1`, `otadata` aponta para o novo slot, device reboota rodando a nova
