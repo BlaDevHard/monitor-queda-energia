@@ -1,0 +1,67 @@
+
+===== observacao iniciada 19:26:40.994 =====
+19:26:41.295 | ets Jul 29 2019 12:21:46
+19:26:41.295 | rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
+19:26:41.295 | configsip: 0, SPIWP:0xee
+19:26:41.295 | clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+19:26:41.295 | mode:DIO, clock div:2
+19:26:41.295 | load:0x3fff0030,len:1184
+19:26:41.295 | load:0x40078000,len:13232
+19:26:41.295 | load:0x40080400,len:3028
+19:26:41.295 | entry 0x400805e4
+19:26:43.688 | Conectando WiFi.. OK -> 192.168.1.5
+19:26:45.868 | Relogio: SEM NTP — usando hora estimada (aproximada)
+19:26:45.868 | Checkpoint: servico ativo desde 18/10/2026 18:22:40 | ultimo epoch 18/10/2026 19:26:30
+19:26:45.868 | [  4293][E][WiFiGeneric.cpp:1583] hostByName(): DNS Failed for api.pushbullet.com
+19:26:45.868 | Pushbullet: -1
+19:26:45.868 | [  4329][E][WiFiGeneric.cpp:1583] hostByName(): DNS Failed for discord.com
+19:26:45.868 | Discord: -1
+19:26:45.868 | Sem rede: na fila (1/32) — SISTEMA ONLINE
+19:26:45.868 | OTA: estado da imagem = VALIDA (slot app1)
+19:26:45.868 | UART2 pronta: RX=GPIO16 @9600, aguardando linhas do Arduino
+19:26:45.868 | [  4375][E][WiFiGeneric.cpp:1583] hostByName(): DNS Failed for discord.com
+19:26:45.868 | Discord: -1
+19:26:47.271 | MQTT conectado: broker.emqx.io
+19:26:48.855 | Discord: 204
+19:26:48.855 | Fila: enviada — SISTEMA ONLINE
+19:26:48.855 | ESTADO INICIAL: SERVIÇO ATIVO
+19:26:53.233 | Pushbullet: 200
+19:27:06.234 | [ 24297][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():273]: (-29312) SSL - The connection indicated an EOF
+19:27:06.234 | [ 24308][E][WiFiClientSecure.cpp:144] connect(): start_ssl_client: -29312
+19:27:06.234 | Discord: -1
+19:27:06.234 | Sem rede: na fila (1/32) — SERVIÇO ATIVO
+19:27:06.234 | MQTT estado: ok -> {"energia":"presente","amp":410,"vrms":122.5,"v_nom":127,"freq_hz":60.7,"em_queda":false,"sinal_saturado":false,"ts":1792362425,"duracao_s":0,"ultima_queda_s":0,"fila":1,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:27:06.234 | Relogio: NTP sincronizado apos boot (hora confiavel)
+19:27:08.584 | Discord: 204
+19:27:08.584 | Fila: enviada — SERVIÇO ATIVO
+19:32:59.281 | EVENTO: QUEDA (amp=16) [adiado 8 s — se virar blecaute, publica]
+19:32:59.281 | MQTT estado: ok -> {"energia":"ausente","amp":16,"vrms":4.8,"v_nom":127,"freq_hz":59.8,"em_queda":true,"sinal_saturado":false,"ts":1792362779,"duracao_s":0,"ultima_queda_s":0,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:01.229 | Pulso registrado (2075 ms, amp 434) — 1 no buffer
+19:33:01.229 | Queda confirmada sem dur_ms do Arduino — fallback armado
+19:33:01.229 | EVENTO: SERVICO ATIVO (queda de 2s) [cancelado — virou relatorio]
+19:33:01.229 | MQTT estado: ok -> {"energia":"presente","amp":434,"vrms":129.6,"v_nom":127,"freq_hz":59.8,"em_queda":false,"sinal_saturado":false,"ts":1792362781,"duracao_s":0,"ultima_queda_s":2,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:02.470 | EVENTO: QUEDA (amp=17) [rajada — vai no relatorio]
+19:33:02.470 | MQTT estado: ok -> {"energia":"ausente","amp":17,"vrms":5.1,"v_nom":127,"freq_hz":59.8,"em_queda":true,"sinal_saturado":false,"ts":1792362782,"duracao_s":0,"ultima_queda_s":2,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:03.119 | Pulso registrado (728 ms, amp 710) — 2 no buffer
+19:33:03.119 | Queda confirmada sem dur_ms do Arduino — fallback armado
+19:33:03.119 | EVENTO: SERVICO ATIVO (queda de 0s) [rajada — vai no relatorio]
+19:33:03.119 | MQTT estado: ok -> {"energia":"presente","amp":710,"vrms":212.1,"v_nom":127,"freq_hz":59.8,"em_queda":false,"sinal_saturado":false,"ts":1792362782,"duracao_s":0,"ultima_queda_s":0,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:04.382 | EVENTO: QUEDA (amp=12) [rajada — vai no relatorio]
+19:33:04.382 | MQTT estado: ok -> {"energia":"ausente","amp":12,"vrms":3.6,"v_nom":127,"freq_hz":59.8,"em_queda":true,"sinal_saturado":false,"ts":1792362784,"duracao_s":0,"ultima_queda_s":0,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:04.682 | Pulso registrado (548 ms, amp 467) — 3 no buffer
+19:33:04.682 | Queda confirmada sem dur_ms do Arduino — fallback armado
+19:33:04.682 | EVENTO: SERVICO ATIVO (queda de 0s) [rajada — vai no relatorio]
+19:33:04.682 | MQTT estado: ok -> {"energia":"presente","amp":467,"vrms":139.5,"v_nom":127,"freq_hz":59.8,"em_queda":false,"sinal_saturado":false,"ts":1792362784,"duracao_s":0,"ultima_queda_s":0,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:09.718 | Relatorio de pulsos: 3 eventos (1 quedas, 2 flicker)
+19:33:16.247 | Pushbullet: 200
+19:33:16.247 | Discord: 204
+19:33:21.949 | EVENTO: QUEDA (amp=15) [adiado 8 s — se virar blecaute, publica]
+19:33:21.949 | MQTT estado: ok -> {"energia":"ausente","amp":15,"vrms":4.5,"v_nom":127,"freq_hz":61.6,"em_queda":true,"sinal_saturado":false,"ts":1792362801,"duracao_s":0,"ultima_queda_s":0,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:33:29.834 | QUEDA confirmada como blecaute real — publicando alerta
+19:33:33.585 | Pushbullet: 200
+19:33:33.585 | Discord: 204
+19:33:36.505 | EVENTO: SERVICO ATIVO (queda de 15s)
+19:33:40.343 | Pushbullet: 200
+19:33:40.343 | Discord: 204
+19:33:40.343 | MQTT estado: ok -> {"energia":"presente","amp":418,"vrms":124.9,"v_nom":127,"freq_hz":59.8,"em_queda":false,"sinal_saturado":false,"ts":1792362819,"duracao_s":0,"ultima_queda_s":15,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}
+19:36:41.699 | MQTT estado: ok -> {"energia":"presente","amp":421,"vrms":125.8,"v_nom":127,"freq_hz":59.8,"em_queda":false,"sinal_saturado":false,"ts":1792363001,"duracao_s":0,"ultima_queda_s":15,"fila":0,"slot":"app1","ota_estado":"VALIDA","ota_pendente":false}

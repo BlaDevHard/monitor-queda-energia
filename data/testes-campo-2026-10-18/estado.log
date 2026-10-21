@@ -1,0 +1,118 @@
+19:26:43.387 | ERRO /estado: <urlopen error [Errno 111] Connection refused>
+19:26:43.702 | ERRO /estado: <urlopen error [Errno 111] Connection refused>
+19:26:44.967 | ERRO /estado: <urlopen error [Errno 111] Connection refused>
+19:26:46.370 | energia=? em_queda=False amp=-1 vrms=0.0 fila=1 ultima_queda_s=0 duracao_s=0 desde=- uptime=4
+19:26:48.555 | energia=? em_queda=False amp=-1 vrms=0.0 fila=0 ultima_queda_s=0 duracao_s=0 desde=- uptime=7
+19:26:52.933 | ERRO /estado: timed out
+19:26:57.252 | ERRO /estado: timed out
+19:27:01.611 | ERRO /estado: timed out
+19:27:05.934 | ERRO /estado: timed out
+19:27:08.284 | energia=presente em_queda=False amp=412 vrms=123.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=26
+19:27:13.601 | energia=presente em_queda=False amp=410 vrms=122.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=32
+19:27:18.150 | energia=presente em_queda=False amp=414 vrms=123.7 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=36
+19:27:22.910 | energia=presente em_queda=False amp=410 vrms=122.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=41
+19:27:27.837 | energia=presente em_queda=False amp=406 vrms=121.3 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=46
+19:27:32.866 | energia=presente em_queda=False amp=415 vrms=124.0 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=51
+19:27:53.143 | energia=presente em_queda=False amp=410 vrms=122.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=71
+19:28:03.708 | energia=presente em_queda=False amp=412 vrms=123.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=82
+19:28:08.719 | energia=presente em_queda=False amp=414 vrms=123.7 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=87
+19:28:13.739 | energia=presente em_queda=False amp=413 vrms=123.4 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=92
+19:28:18.647 | energia=presente em_queda=False amp=415 vrms=124.0 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=97
+19:28:23.135 | energia=presente em_queda=False amp=411 vrms=122.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=101
+19:28:28.162 | energia=presente em_queda=False amp=414 vrms=123.7 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=106
+19:28:33.167 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=111
+19:28:39.236 | energia=presente em_queda=False amp=415 vrms=124.0 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=117
+19:28:43.956 | energia=presente em_queda=False amp=416 vrms=124.3 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=122
+19:28:48.923 | energia=presente em_queda=False amp=412 vrms=123.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=127
+19:28:53.558 | energia=presente em_queda=False amp=416 vrms=124.3 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=132
+19:28:58.490 | energia=presente em_queda=False amp=409 vrms=122.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=137
+19:29:03.562 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=142
+19:29:09.514 | energia=presente em_queda=False amp=416 vrms=124.3 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=148
+19:29:14.333 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=152
+19:29:24.154 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=162
+19:29:28.796 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=167
+19:29:39.807 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=178
+19:29:44.771 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=183
+19:29:49.576 | energia=presente em_queda=False amp=417 vrms=124.6 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=188
+19:29:54.259 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=192
+19:30:01.028 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=199
+19:30:04.433 | energia=presente em_queda=False amp=428 vrms=127.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=202
+19:30:09.255 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=207
+19:30:14.184 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=212
+19:30:25.211 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=223
+19:30:34.945 | energia=presente em_queda=False amp=424 vrms=126.6 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=233
+19:30:39.847 | energia=presente em_queda=False amp=426 vrms=127.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=238
+19:30:44.551 | energia=presente em_queda=False amp=425 vrms=126.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=243
+19:30:49.501 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=248
+19:30:56.491 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=255
+19:31:00.541 | energia=presente em_queda=False amp=424 vrms=126.6 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=259
+19:31:05.581 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=264
+19:31:10.591 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=269
+19:31:25.510 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=284
+19:31:30.303 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=288
+19:31:35.735 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=294
+19:31:40.750 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=299
+19:31:45.299 | energia=presente em_queda=False amp=429 vrms=128.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=303
+19:31:50.221 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=308
+19:31:55.133 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=313
+19:32:00.158 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=318
+19:32:05.015 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=323
+19:32:11.080 | energia=presente em_queda=False amp=424 vrms=126.6 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=329
+19:32:21.036 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=339
+19:32:26.035 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=344
+19:32:35.326 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=353
+19:32:40.280 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=358
+19:32:46.213 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=364
+19:32:51.243 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=369
+19:32:55.881 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:26:36 uptime=374
+19:32:59.327 | energia=ausente em_queda=True amp=16 vrms=4.8 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:32:59 uptime=377
+19:33:01.569 | energia=presente em_queda=False amp=434 vrms=129.6 fila=0 ultima_queda_s=2 duracao_s=0 desde=18/10/2026 19:33:01 uptime=380
+19:33:02.819 | energia=ausente em_queda=True amp=17 vrms=5.1 fila=0 ultima_queda_s=2 duracao_s=0 desde=18/10/2026 19:33:02 uptime=381
+19:33:04.081 | energia=ausente em_queda=True amp=12 vrms=3.6 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:33:04 uptime=382
+19:33:05.386 | energia=presente em_queda=False amp=467 vrms=139.5 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:33:04 uptime=383
+19:33:14.037 | ERRO /estado: timed out
+19:33:15.947 | energia=presente em_queda=False amp=414 vrms=123.7 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:33:04 uptime=394
+19:33:19.816 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=0 duracao_s=0 desde=18/10/2026 19:33:04 uptime=398
+19:33:22.273 | energia=ausente em_queda=True amp=15 vrms=4.5 fila=0 ultima_queda_s=0 duracao_s=1 desde=18/10/2026 19:33:21 uptime=400
+19:33:27.255 | energia=ausente em_queda=True amp=12 vrms=3.6 fila=0 ultima_queda_s=0 duracao_s=6 desde=18/10/2026 19:33:21 uptime=405
+19:33:40.042 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=418
+19:33:41.650 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=420
+19:33:46.514 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=425
+19:33:52.178 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=430
+19:33:56.949 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=435
+19:34:01.774 | energia=presente em_queda=False amp=428 vrms=127.8 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=440
+19:34:07.935 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=446
+19:34:22.588 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=461
+19:34:27.150 | energia=presente em_queda=False amp=424 vrms=126.6 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=465
+19:34:32.990 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=471
+19:34:38.048 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=476
+19:34:42.518 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=481
+19:34:47.330 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=485
+19:34:52.087 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=490
+19:34:57.580 | energia=presente em_queda=False amp=425 vrms=126.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=496
+19:35:02.326 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=500
+19:35:07.328 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=505
+19:35:12.353 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=510
+19:35:17.540 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=516
+19:35:22.506 | energia=presente em_queda=False amp=425 vrms=126.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=521
+19:35:27.357 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=525
+19:35:33.320 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=531
+19:35:38.389 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=536
+19:35:43.167 | energia=presente em_queda=False amp=424 vrms=126.6 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=541
+19:35:48.051 | energia=presente em_queda=False amp=425 vrms=126.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=546
+19:35:53.681 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=552
+19:36:03.519 | energia=presente em_queda=False amp=426 vrms=127.2 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=562
+19:36:09.672 | energia=presente em_queda=False amp=425 vrms=126.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=568
+19:36:14.524 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=573
+19:36:21.374 | ERRO /estado: <urlopen error timed out>
+19:36:27.791 | ERRO /estado: timed out
+19:36:30.229 | energia=presente em_queda=False amp=418 vrms=124.9 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=588
+19:36:33.023 | energia=presente em_queda=False amp=419 vrms=125.2 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=591
+19:36:38.041 | energia=presente em_queda=False amp=421 vrms=125.8 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=596
+19:36:44.270 | energia=presente em_queda=False amp=431 vrms=128.7 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=602
+19:36:50.843 | energia=presente em_queda=False amp=423 vrms=126.4 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=607
+19:36:55.857 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=612
+19:36:58.723 | energia=presente em_queda=False amp=420 vrms=125.5 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=617
+19:37:08.546 | energia=presente em_queda=False amp=422 vrms=126.1 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=627
+19:37:14.418 | energia=presente em_queda=False amp=416 vrms=124.3 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=632
+19:37:19.426 | energia=presente em_queda=False amp=415 vrms=124.0 fila=0 ultima_queda_s=15 duracao_s=0 desde=18/10/2026 19:33:36 uptime=638

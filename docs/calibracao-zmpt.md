@@ -181,7 +181,74 @@ varredura completa de 9 pontos continue dependendo do **variac**).
 
 ---
 
-## 8. Arquivos
+## 8. Sessão noturna de 18/10 — a variação natural apareceu (sem pareamento)
+
+**Quando:** 18/10, 19:50–23:00. **Resultado: nenhuma linha nova no CSV**, por
+motivo de método — mas a sessão valeu por dois achados.
+
+### 8.1 A variação natural que o plano pedia existiu sozinha
+
+O §7 pedia um variac porque "sem variac não há span". Na noite de 18/10 a
+própria rede entregou a variação, sem ninguém tocar em nada:
+
+| Hora | Multímetro | `amp` do aparelho |
+|---|---|---|
+| 19:5x | 121,7 | 418 |
+| 20:0x | 121,8 – 122,2 | 420 |
+| 20:01 | 124,4 | 423 |
+| 20:02 | 124,5 | 421,5 (média, n=90) |
+
+**121,7 → 124,5 V em ~5 minutos** — 2,3% de variação só de olhar. É o
+padrão de carga da noite caindo. Confirma a hipótese do §7 de que o span
+não precisa de variac: precisa de **janelas em horários diferentes**.
+
+Também se observou uma queda até **119,8 V** às 19:54 (−5,7% do nominal),
+antes da subida. Se repetir, sozinha isso levaria o span de 4,7% para ~9%.
+
+### 8.2 O `k` não bateu — mas não dá para afirmar que o K está errado
+
+Com `amp` médio 421,5 e o multímetro em 124,5 V:
+
+```
+k = 124,5 / 421,5 = 0,295358        K aplicado no firmware: 0,2987
+```
+
+Ou seja, o aparelho estaria **+1,15% alto** — fora da incerteza de ±0,60%
+da regressão do §4. Com a leitura de 121,8 V daria 0,289000, **2,6% abaixo**.
+
+**Não está gravado no CSV, e não deve ser.** As leituras do multímetro
+chegaram **fora da janela de captura** — o mesmo defeito do ponto 5, só
+que pior, porque a tensão estava subindo 0,5 V/min e casar errado produz
+exatamente essa divergência. É impossível separar "K errado" de
+"pareamento errado" com estes dados. **A hipótese de K errado fica ABERTA.**
+
+### 8.3 O que mudou para a segunda (19/10)
+
+Nasceu um protocolo de sincronia, porque a latência da conversa não é
+menor que a deriva da tensão:
+
+1. `python3 testes/amostrar.py 20` — janela com `amp_media`, `sigma`, `min`,
+   `max`, `n` (o CSV exige estatística, leitura isolada não serve)
+2. **Ler o multímetro durante a janela** e mandar o valor
+3. Parear pelo carimbo de tempo
+
+Arquivos de apoio, em `data/testes-campo-2026-10-18/`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `amostras.tsv` | 1 MB, ~3 amostras/s do `/estado`, com timestamps |
+| `serial.log` | log serial do teste de queda (gracia medida) |
+| `powercycle.log` | transições do teste de corte de energia |
+| `estado.log` | transições de `/estado` do teste do ZMPT |
+
+> ⚠️ **Não abrir a porta serial para observar.** No CH340 o RTS é o pino EN
+> do ESP32; a linha de auto-reset que serve para flashar **reinicia o
+> aparelho**. Custou um reboot em produção às 19:26:39. Observar só por
+> HTTP (`/estado`), que responde mesmo com a placa viva.
+
+---
+
+## 9. Arquivos
 
 | Arquivo | Conteúdo |
 |---|---|
